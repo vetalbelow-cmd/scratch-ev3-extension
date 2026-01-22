@@ -1,1 +1,10 @@
-
+{
+    "name": "EV3 Control",
+    "description": "Управление LEGO Mindstorms EV3 из Scratch",
+    "version": "1.0",
+    "permissions": ["bluetooth"],
+    "icon": "icon.svg",
+    "extension": {
+        "url": "ev3.js"
+    }
+}

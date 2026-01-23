@@ -1,148 +1,160 @@
-// EV3 Full Control Extension v2.0
+// EV3 Simple Working Extension
 (function(ext) {
-    console.log('EV3 Full Control loading...');
+    // Убираем сложные промисы и асинхронность
+    console.log('EV3 Extension loading...');
     
-    // === КОНСТАНТЫ ===
-    var motorStates = {
-        A: { power: 0, running: false },
-        B: { power: 0, running: false },
-        C: { power: 0, running: false },
-        D: { power: 0, running: false }
-    };
+    // === ПРОСТЫЕ ФУНКЦИИ ===
     
-    // === ФУНКЦИИ ДЛЯ БЛОКОВ ===
-    
-    // Блок 1: Включить мотор на секунды
-    ext.motorOnForSeconds = function(port, power, seconds) {
-        var portStr = port.toString();
-        var powerNum = Math.max(-100, Math.min(100, parseInt(power) || 0));
-        var secondsNum = Math.max(0.1, Math.min(10, parseFloat(seconds) || 1));
-        
-        console.log('Мотор ' + portStr + ': ' + powerNum + '% на ' + secondsNum + 'сек');
-        
-        motorStates[portStr].power = powerNum;
-        motorStates[portStr].running = true;
-        
-        return new Promise(function(resolve) {
-            setTimeout(function() {
-                motorStates[portStr].running = false;
-                resolve();
-            }, secondsNum * 1000);
-        });
-    };
-    
-    // Блок 2: Включить мотор на градусы
-    ext.motorOnForDegrees = function(port, power, degrees) {
-        var portStr = port.toString();
-        var powerNum = Math.max(-100, Math.min(100, parseInt(power) || 0));
-        var degreesNum = Math.max(-360, Math.min(360, parseInt(degrees) || 90));
-        
-        // Расчет времени: 360° ≈ 2 сек при 100%
-        var time = (Math.abs(degreesNum) / 360) * 2 * (100 / Math.abs(powerNum || 1));
-        time = Math.max(0.5, Math.min(5, time));
-        
-        console.log('Мотор ' + portStr + ': ' + powerNum + '% на ' + degreesNum + '°');
-        
-        motorStates[portStr].power = powerNum;
-        motorStates[portStr].running = true;
-        
-        return new Promise(function(resolve) {
-            setTimeout(function() {
-                motorStates[portStr].running = false;
-                resolve();
-            }, time * 1000);
-        });
-    };
-    
-    // Блок 3: Установить мощность
-    ext.setMotorPower = function(port, power) {
-        var portStr = port.toString();
-        var powerNum = Math.max(-100, Math.min(100, parseInt(power) || 0));
-        
-        motorStates[portStr].power = powerNum;
-        console.log('Мотор ' + portStr + ' мощность: ' + powerNum + '%');
-    };
-    
-    // Блок 4: Установить направление
-    ext.setMotorDirection = function(port, direction) {
-        var portStr = port.toString();
-        var currentPower = Math.abs(motorStates[portStr].power);
-        var newPower = direction === 'forward' ? currentPower : -currentPower;
-        
-        motorStates[portStr].power = newPower;
-        console.log('Мотор ' + portStr + ' направление: ' + direction);
-    };
-    
-    // Блок 5: Остановить мотор
-    ext.stopMotor = function(port) {
-        var portStr = port.toString();
-        motorStates[portStr].power = 0;
-        motorStates[portStr].running = false;
-        console.log('Мотор ' + portStr + ': остановлен');
-    };
-    
-    // Блок 6: Остановить все
-    ext.stopAllMotors = function() {
-        for (var port in motorStates) {
-            motorStates[port].power = 0;
-            motorStates[port].running = false;
-        }
-        console.log('Все моторы остановлены');
-    };
-    
-    // Блок 7: Датчик цвета (цвет)
-    ext.getColor = function(port) {
-        var portNum = parseInt(port) || 1;
-        var color = Math.floor(Math.random() * 8); // 0-7
-        console.log('Датчик цвета порт ' + portNum + ': цвет ' + color);
-        return color;
-    };
-    
-    // Блок 8: Датчик цвета (отражение)
-    ext.getReflectedLight = function(port) {
-        var portNum = parseInt(port) || 1;
-        var brightness = Math.floor(Math.random() * 101); // 0-100%
-        console.log('Датчик цвета порт ' + portNum + ': отражение ' + brightness + '%');
-        return brightness;
-    };
-    
-    // Блок 9: Тестовая функция
+    // 1. Тестовая функция
     ext.test = function() {
-        console.log('EV3 Full Control работает!');
+        console.log('EV3 тест работает!');
+        // В Scratch 3 нельзя использовать alert
     };
     
-    // === ОПИСАНИЕ БЛОКОВ ===
+    // 2. Мотор на секунды (упрощенная)
+    ext.motorOnForSeconds = function(args) {
+        var port = args.PORT;
+        var power = args.POWER;
+        var seconds = args.SECONDS;
+        console.log('Мотор ' + port + ': ' + power + '% на ' + seconds + 'сек');
+        // Ничего не возвращаем - Scratch 3 ждет undefined
+    };
+    
+    // 3. Мотор на градусы
+    ext.motorOnForDegrees = function(args) {
+        var port = args.PORT;
+        var power = args.POWER;
+        var degrees = args.DEGREES;
+        console.log('Мотор ' + port + ': ' + power + '% на ' + degrees + '°');
+    };
+    
+    // 4. Установить мощность
+    ext.setMotorPower = function(args) {
+        var port = args.PORT;
+        var power = args.POWER;
+        console.log('Мотор ' + port + ' мощность: ' + power + '%');
+    };
+    
+    // 5. Датчик цвета
+    ext.getColor = function(args) {
+        var port = args.PORT;
+        console.log('Датчик цвета порт ' + port);
+        // Возвращаем случайное число 0-7
+        return Math.floor(Math.random() * 8);
+    };
+    
+    // 6. Датчик отражения
+    ext.getReflectedLight = function(args) {
+        var port = args.PORT;
+        console.log('Датчик отражения порт ' + port);
+        // Возвращаем случайное число 0-100
+        return Math.floor(Math.random() * 101);
+    };
+    
+    // === ОПИСАНИЕ БЛОКОВ ДЛЯ SCRATCH 3 ===
+    
     var descriptor = {
+        id: 'ev3',
+        name: 'EV3 Control',
+        color1: '#FF6A00',
+        color2: '#FF4500',
         blocks: [
-            // Моторы - точное управление
-            [' ', 'Мотор %m.ports мощность %n% на %n секунд', 'motorOnForSeconds', 'A', 50, 1],
-            [' ', 'Мотор %m.ports на %n градусов мощность %n%', 'motorOnForDegrees', 'A', 90, 50],
-            [' ', 'Установить мотор %m.ports мощность %n%', 'setMotorPower', 'A', 50],
-            [' ', 'Установить мотор %m.ports направление %m.directions', 'setMotorDirection', 'A', 'forward'],
-            [' ', 'Остановить мотор %m.ports', 'stopMotor', 'A'],
-            [' ', 'Остановить все моторы', 'stopAllMotors'],
-            
-            // Датчики
-            ['r', 'Датчик цвета (порт %n) цвет', 'getColor', 1],
-            ['r', 'Датчик цвета (порт %n) отражение %', 'getReflectedLight', 1],
-            
-            // Тест
-            [' ', 'Тест расширения', 'test'],
-            
-            // Информация
-            ['h', 'EV3 Full Control v2.0', 'test']
+            {
+                opcode: 'test',
+                blockType: 'command',
+                text: 'Тест расширения'
+            },
+            {
+                opcode: 'motorOnForSeconds',
+                blockType: 'command',
+                text: 'Мотор [PORT] мощность [POWER]% на [SECONDS] сек',
+                arguments: {
+                    PORT: {
+                        type: 'string',
+                        menu: 'ports',
+                        defaultValue: 'A'
+                    },
+                    POWER: {
+                        type: 'number',
+                        defaultValue: 50
+                    },
+                    SECONDS: {
+                        type: 'number',
+                        defaultValue: 1
+                    }
+                }
+            },
+            {
+                opcode: 'motorOnForDegrees',
+                blockType: 'command',
+                text: 'Мотор [PORT] на [DEGREES]° мощность [POWER]%',
+                arguments: {
+                    PORT: {
+                        type: 'string',
+                        menu: 'ports',
+                        defaultValue: 'A'
+                    },
+                    DEGREES: {
+                        type: 'number',
+                        defaultValue: 90
+                    },
+                    POWER: {
+                        type: 'number',
+                        defaultValue: 50
+                    }
+                }
+            },
+            {
+                opcode: 'setMotorPower',
+                blockType: 'command',
+                text: 'Установить мотор [PORT] мощность [POWER]%',
+                arguments: {
+                    PORT: {
+                        type: 'string',
+                        menu: 'ports',
+                        defaultValue: 'A'
+                    },
+                    POWER: {
+                        type: 'number',
+                        defaultValue: 50
+                    }
+                }
+            },
+            {
+                opcode: 'getColor',
+                blockType: 'reporter',
+                text: 'Датчик цвета порт [PORT]',
+                arguments: {
+                    PORT: {
+                        type: 'number',
+                        defaultValue: 1
+                    }
+                }
+            },
+            {
+                opcode: 'getReflectedLight',
+                blockType: 'reporter',
+                text: 'Датчик отражения порт [PORT] %',
+                arguments: {
+                    PORT: {
+                        type: 'number',
+                        defaultValue: 1
+                    }
+                }
+            }
         ],
         menus: {
-            ports: ['A', 'B', 'C', 'D'],
-            directions: ['forward', 'backward']
+            ports: ['A', 'B', 'C', 'D']
         }
     };
     
     // === РЕГИСТРАЦИЯ ===
-    if (typeof Scratch !== 'undefined') {
+    
+    // Для Scratch 3
+    if (typeof Scratch !== 'undefined' && Scratch.extensions) {
         Scratch.extensions.register(descriptor, ext);
     }
     
-    console.log('EV3 Full Control успешно загружен!');
+    console.log('EV3 Extension успешно загружен!');
     
 })({});

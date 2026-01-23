@@ -1,207 +1,206 @@
-/* LEGO EV3 Extended Extension for Scratch/TurboWarp
-   Based on official Scratch EV3 extension with enhanced features
-   Version: 3.0.0
+/* LEGO EV3 Local Extension for TurboWarp/Scratch
+   Version: 4.0.0 - WebSerial API (без сервера)
+   Поддерживает: Chrome 89+, Edge 89+, Opera 76+
 */
 
 (function(Scratch) {
     'use strict';
 
-    if (!Scratch.extensions.unsandboxed) {
-        throw new Error('EV3 extension requires unsandboxed extension');
-    }
-
-    const DEVICE_NAMES = {
-        MEDIUM_MOTOR: 'lego-ev3-m-motor',
-        LARGE_MOTOR: 'lego-ev3-l-motor',
-        COLOR_SENSOR: 'lego-ev3-color',
-        ULTRASONIC_SENSOR: 'lego-ev3-us',
-        GYRO_SENSOR: 'lego-ev3-gyro',
-        TOUCH_SENSOR: 'lego-ev3-touch',
-        INFRARED_SENSOR: 'lego-ev3-ir'
-    };
-
-    const MOTOR_PORTS = ['A', 'B', 'C', 'D'];
-    const SENSOR_PORTS = ['1', '2', '3', '4'];
-    const MOTOR_MODES = ['COAST', 'BRAKE', 'HOLD'];
-
-    class EV3Extension {
+    class EV3LocalExtension {
         constructor() {
-            this.runtime = Scratch.vm.runtime;
-            this.ws = null;
-            this.wsConnected = false;
-            this.wsReconnectAttempts = 0;
-            this.maxReconnectAttempts = 5;
-            this.pendingCommands = new Map();
-            this.commandId = 0;
-            
-            // Кэш значений датчиков
-            this.sensorCache = {
-                '1': { value: 0, type: 'UNKNOWN' },
-                '2': { value: 0, type: 'UNKNOWN' },
-                '3': { value: 0, type: 'UNKNOWN' },
-                '4': { value: 0, type: 'UNKNOWN' }
+            this.device = null;
+            this.reader = null;
+            this.writer = null;
+            this.connected = false;
+            this.reading = false;
+            this.sensorValues = {
+                '1': 0,
+                '2': 0,
+                '3': 0,
+                '4': 0
+            };
+            this.motorStates = {
+                'A': { speed: 0, position: 0, mode: 'coast' },
+                'B': { speed: 0, position: 0, mode: 'coast' },
+                'C': { speed: 0, position: 0, mode: 'coast' },
+                'D': { speed: 0, position: 0, mode: 'coast' }
             };
             
-            // Состояние моторов
-            this.motorState = {
-                'A': { speed: 0, position: 0, mode: 'COAST' },
-                'B': { speed: 0, position: 0, mode: 'COAST' },
-                'C': { speed: 0, position: 0, mode: 'COAST' },
-                'D': { speed: 0, position: 0, mode: 'COAST' }
-            };
+            // Проверяем поддержку WebSerial
+            this.serialSupported = 'serial' in navigator;
             
-            this.setupWebSocket();
+            // Автоматически пытаемся подключиться к сохраненному устройству
+            this.autoConnect();
         }
-
-        setupWebSocket() {
-            const wsUrl = 'ws://localhost:8765';
-            this.ws = new WebSocket(wsUrl);
-            
-            this.ws.onopen = () => {
-                console.log('EV3 WebSocket connected');
-                this.wsConnected = true;
-                this.wsReconnectAttempts = 0;
-                this.startSensorPolling();
-            };
-            
-            this.ws.onmessage = (event) => {
+        
+        async autoConnect() {
+            const ports = await navigator.serial.getPorts();
+            if (ports.length > 0) {
                 try {
-                    const data = JSON.parse(event.data);
-                    
-                    // Обработка ответов на команды
-                    if (data.id && this.pendingCommands.has(data.id)) {
-                        const { resolve, reject } = this.pendingCommands.get(data.id);
-                        this.pendingCommands.delete(data.id);
-                        
-                        if (data.success) {
-                            resolve(data);
-                        } else {
-                            reject(data.error);
-                        }
-                    }
-                    
-                    // Обработка обновлений датчиков
-                    if (data.type === 'sensor_update') {
-                        for (const [port, value] of Object.entries(data.data)) {
-                            if (this.sensorCache[port]) {
-                                this.sensorCache[port].value = value;
-                            }
-                        }
-                    }
-                    
-                    // Обработка обновлений моторов
-                    if (data.type === 'motor_update') {
-                        for (const [port, state] of Object.entries(data.data)) {
-                            if (this.motorState[port]) {
-                                Object.assign(this.motorState[port], state);
-                            }
-                        }
-                    }
-                    
+                    await this.connectToPort(ports[0]);
                 } catch (error) {
-                    console.error('Error parsing WebSocket message:', error);
+                    console.warn('Auto-connect failed:', error);
                 }
-            };
-            
-            this.ws.onerror = (error) => {
-                console.error('EV3 WebSocket error:', error);
-            };
-            
-            this.ws.onclose = () => {
-                console.log('EV3 WebSocket disconnected');
-                this.wsConnected = false;
-                this.stopSensorPolling();
+            }
+        }
+        
+        async connectToPort(port) {
+            try {
+                await port.open({ baudRate: 115200 });
+                this.device = port;
                 
-                // Попытка переподключения
-                if (this.wsReconnectAttempts < this.maxReconnectAttempts) {
-                    this.wsReconnectAttempts++;
-                    const delay = Math.min(1000 * Math.pow(2, this.wsReconnectAttempts), 10000);
-                    setTimeout(() => this.setupWebSocket(), delay);
-                }
-            };
-        }
-        
-        startSensorPolling() {
-            if (this.sensorPollInterval) {
-                clearInterval(this.sensorPollInterval);
-            }
-            
-            this.sensorPollInterval = setInterval(() => {
-                if (this.wsConnected) {
-                    this.ws.send(JSON.stringify({
-                        type: 'get_sensors'
-                    }));
-                }
-            }, 100); // 10 раз в секунду
-        }
-        
-        stopSensorPolling() {
-            if (this.sensorPollInterval) {
-                clearInterval(this.sensorPollInterval);
-                this.sensorPollInterval = null;
-            }
-        }
-        
-        async sendCommand(command, params = {}) {
-            if (!this.wsConnected) {
-                throw new Error('EV3 не подключен. Запустите ev3-bridge.py на компьютере/EV3');
-            }
-            
-            const id = ++this.commandId;
-            const message = {
-                id: id,
-                type: 'command',
-                command: command,
-                params: params,
-                timestamp: Date.now()
-            };
-            
-            return new Promise((resolve, reject) => {
-                const timeout = setTimeout(() => {
-                    this.pendingCommands.delete(id);
-                    reject(new Error('Таймаут выполнения команды'));
-                }, 5000);
+                // Настраиваем чтение
+                this.setupReader();
                 
-                this.pendingCommands.set(id, { resolve, reject, timeout });
-                this.ws.send(JSON.stringify(message));
-            });
+                // Настраиваем запись
+                this.writer = port.writable.getWriter();
+                
+                this.connected = true;
+                console.log('EV3 подключен через WebSerial');
+                
+                // Отправляем тестовую команду
+                await this.sendCommand('TEST');
+                
+                return true;
+            } catch (error) {
+                console.error('Connection error:', error);
+                throw error;
+            }
         }
-
+        
+        setupReader() {
+            if (!this.device || !this.device.readable) return;
+            
+            this.reading = true;
+            this.reader = this.device.readable.getReader();
+            
+            const readLoop = async () => {
+                while (this.reading && this.reader) {
+                    try {
+                        const { value, done } = await this.reader.read();
+                        if (done) {
+                            this.reader.releaseLock();
+                            break;
+                        }
+                        
+                        if (value) {
+                            this.processIncomingData(value);
+                        }
+                    } catch (error) {
+                        console.error('Read error:', error);
+                        break;
+                    }
+                }
+            };
+            
+            readLoop();
+        }
+        
+        processIncomingData(data) {
+            try {
+                // Преобразуем Uint8Array в строку
+                const text = new TextDecoder().decode(data);
+                const lines = text.trim().split('\n');
+                
+                for (const line of lines) {
+                    if (line.startsWith('SENSOR:')) {
+                        // Пример: "SENSOR:1:45" - датчик 1 значение 45
+                        const parts = line.split(':');
+                        if (parts.length >= 3) {
+                            const port = parts[1];
+                            const value = parseInt(parts[2]);
+                            if (port in this.sensorValues) {
+                                this.sensorValues[port] = value;
+                            }
+                        }
+                    } else if (line.startsWith('MOTOR:')) {
+                        // Пример: "MOTOR:A:SPEED:30" - мотор A скорость 30%
+                        const parts = line.split(':');
+                        if (parts.length >= 4) {
+                            const port = parts[1];
+                            const param = parts[2];
+                            const value = parseInt(parts[3]);
+                            
+                            if (port in this.motorStates) {
+                                if (param === 'SPEED') {
+                                    this.motorStates[port].speed = value;
+                                } else if (param === 'POS') {
+                                    this.motorStates[port].position = value;
+                                }
+                            }
+                        }
+                    } else if (line.startsWith('BATT:')) {
+                        // Уровень батареи
+                        this.batteryLevel = parseInt(line.split(':')[1]) || 100;
+                    }
+                }
+            } catch (error) {
+                console.error('Data processing error:', error);
+            }
+        }
+        
+        async sendCommand(command) {
+            if (!this.connected || !this.writer) {
+                throw new Error('EV3 не подключен');
+            }
+            
+            try {
+                const encoder = new TextEncoder();
+                const data = encoder.encode(command + '\n');
+                await this.writer.write(data);
+                return true;
+            } catch (error) {
+                console.error('Send command error:', error);
+                this.connected = false;
+                throw error;
+            }
+        }
+        
+        async sendMotorCommand(port, command, value = 0) {
+            const cmd = `MOTOR:${port}:${command}:${value}`;
+            return await this.sendCommand(cmd);
+        }
+        
+        async sendSensorCommand(port, command) {
+            const cmd = `SENSOR:${port}:${command}`;
+            return await this.sendCommand(cmd);
+        }
+        
         getInfo() {
             return {
-                id: 'ev3extended',
-                name: 'LEGO EV3 Extended',
-                color1: '#FF6600',
-                color2: '#CC5500',
-                color3: '#AA4400',
+                id: 'ev3local',
+                name: 'LEGO EV3 Local',
+                color1: '#00A8FF',
+                color2: '#0097E6',
+                color3: '#0088CC',
                 
                 blocks: [
-                    // === БЛОКИ ПОДКЛЮЧЕНИЯ ===
+                    // === ПОДКЛЮЧЕНИЕ ===
                     {
                         opcode: 'connect',
                         blockType: Scratch.BlockType.COMMAND,
-                        text: 'подключиться к EV3 [IP]',
-                        arguments: {
-                            IP: {
-                                type: Scratch.ArgumentType.STRING,
-                                defaultValue: 'localhost:8765'
-                            }
-                        }
+                        text: 'подключить EV3 через USB/Bluetooth',
+                        disableMonitor: true
                     },
                     {
                         opcode: 'disconnect',
                         blockType: Scratch.BlockType.COMMAND,
-                        text: 'отключиться от EV3'
+                        text: 'отключить EV3'
                     },
                     {
                         opcode: 'isConnected',
                         blockType: Scratch.BlockType.BOOLEAN,
                         text: 'EV3 подключен?'
                     },
+                    {
+                        opcode: 'isSerialSupported',
+                        blockType: Scratch.BlockType.BOOLEAN,
+                        text: 'WebSerial поддерживается?'
+                    },
                     
                     '---',
                     
-                    // === БАЗОВЫЕ БЛОКИ ДЛЯ МОТОРОВ ===
+                    // === БАЗОВОЕ УПРАВЛЕНИЕ МОТОРАМИ ===
                     {
                         opcode: 'motorOn',
                         blockType: Scratch.BlockType.COMMAND,
@@ -224,7 +223,7 @@
                     {
                         opcode: 'motorOnFor',
                         blockType: Scratch.BlockType.COMMAND,
-                        text: 'мотор [PORT] [DIRECTION] [POWER]% на [DURATION] сек',
+                        text: 'мотор [PORT] [DIRECTION] [POWER]% на [TIME] сек',
                         arguments: {
                             PORT: {
                                 type: Scratch.ArgumentType.STRING,
@@ -238,7 +237,7 @@
                                 type: Scratch.ArgumentType.NUMBER,
                                 defaultValue: 50
                             },
-                            DURATION: {
+                            TIME: {
                                 type: Scratch.ArgumentType.NUMBER,
                                 defaultValue: 1
                             }
@@ -247,15 +246,11 @@
                     {
                         opcode: 'motorOff',
                         blockType: Scratch.BlockType.COMMAND,
-                        text: 'выключить мотор [PORT] [MODE]',
+                        text: 'выключить мотор [PORT]',
                         arguments: {
                             PORT: {
                                 type: Scratch.ArgumentType.STRING,
                                 menu: 'motorPorts'
-                            },
-                            MODE: {
-                                type: Scratch.ArgumentType.STRING,
-                                menu: 'motorModes'
                             }
                         }
                     },
@@ -267,7 +262,7 @@
                     
                     '---',
                     
-                    // === РАСШИРЕННЫЕ БЛОКИ МОТОРОВ ===
+                    // === РАСШИРЕННОЕ УПРАВЛЕНИЕ МОТОРАМИ ===
                     {
                         opcode: 'motorSetSpeed',
                         blockType: Scratch.BlockType.COMMAND,
@@ -353,7 +348,7 @@
                     {
                         opcode: 'tankMoveFor',
                         blockType: Scratch.BlockType.COMMAND,
-                        text: 'танк: левый [LEFT]% правый [RIGHT]% на [DURATION] сек',
+                        text: 'танк: левый [LEFT]% правый [RIGHT]% на [TIME] сек',
                         arguments: {
                             LEFT: {
                                 type: Scratch.ArgumentType.NUMBER,
@@ -363,7 +358,7 @@
                                 type: Scratch.ArgumentType.NUMBER,
                                 defaultValue: 50
                             },
-                            DURATION: {
+                            TIME: {
                                 type: Scratch.ArgumentType.NUMBER,
                                 defaultValue: 2
                             }
@@ -377,13 +372,13 @@
                     
                     '---',
                     
-                    // === БЛОКИ ДАТЧИКОВ ===
+                    // === ДАТЧИКИ ===
                     {
-                        opcode: 'getSensorValue',
+                        opcode: 'getSensor',
                         blockType: Scratch.BlockType.REPORTER,
-                        text: 'датчик [SENSOR] значение',
+                        text: 'датчик [PORT] значение',
                         arguments: {
-                            SENSOR: {
+                            PORT: {
                                 type: Scratch.ArgumentType.STRING,
                                 menu: 'sensorPorts'
                             }
@@ -392,20 +387,9 @@
                     {
                         opcode: 'getTouchSensor',
                         blockType: Scratch.BlockType.BOOLEAN,
-                        text: 'датчик [SENSOR] нажат?',
+                        text: 'датчик [PORT] нажат?',
                         arguments: {
-                            SENSOR: {
-                                type: Scratch.ArgumentType.STRING,
-                                menu: 'sensorPorts'
-                            }
-                        }
-                    },
-                    {
-                        opcode: 'getColorSensor',
-                        blockType: Scratch.BlockType.REPORTER,
-                        text: 'датчик [SENSOR] цвет',
-                        arguments: {
-                            SENSOR: {
+                            PORT: {
                                 type: Scratch.ArgumentType.STRING,
                                 menu: 'sensorPorts'
                             }
@@ -414,9 +398,20 @@
                     {
                         opcode: 'getDistance',
                         blockType: Scratch.BlockType.REPORTER,
-                        text: 'датчик [SENSOR] расстояние см',
+                        text: 'датчик [PORT] расстояние см',
                         arguments: {
-                            SENSOR: {
+                            PORT: {
+                                type: Scratch.ArgumentType.STRING,
+                                menu: 'sensorPorts'
+                            }
+                        }
+                    },
+                    {
+                        opcode: 'getColor',
+                        blockType: Scratch.BlockType.REPORTER,
+                        text: 'датчик [PORT] цвет',
+                        arguments: {
+                            PORT: {
                                 type: Scratch.ArgumentType.STRING,
                                 menu: 'sensorPorts'
                             }
@@ -425,9 +420,9 @@
                     {
                         opcode: 'getAngle',
                         blockType: Scratch.BlockType.REPORTER,
-                        text: 'гироскоп [SENSOR] угол градусов',
+                        text: 'гироскоп [PORT] угол градусов',
                         arguments: {
-                            SENSOR: {
+                            PORT: {
                                 type: Scratch.ArgumentType.STRING,
                                 menu: 'sensorPorts'
                             }
@@ -436,24 +431,43 @@
                     {
                         opcode: 'getReflectedLight',
                         blockType: Scratch.BlockType.REPORTER,
-                        text: 'датчик [SENSOR] отраженный свет %',
+                        text: 'датчик [PORT] отраженный свет %',
                         arguments: {
-                            SENSOR: {
+                            PORT: {
                                 type: Scratch.ArgumentType.STRING,
                                 menu: 'sensorPorts'
+                            }
+                        }
+                    },
+                    {
+                        opcode: 'waitUntilSensor',
+                        blockType: Scratch.BlockType.COMMAND,
+                        text: 'ждать пока датчик [PORT] [OPERATOR] [VALUE]',
+                        arguments: {
+                            PORT: {
+                                type: Scratch.ArgumentType.STRING,
+                                menu: 'sensorPorts'
+                            },
+                            OPERATOR: {
+                                type: Scratch.ArgumentType.STRING,
+                                menu: 'operators'
+                            },
+                            VALUE: {
+                                type: Scratch.ArgumentType.NUMBER,
+                                defaultValue: 50
                             }
                         }
                     },
                     
                     '---',
                     
-                    // === ДОПОЛНИТЕЛЬНЫЕ ФУНКЦИИ ===
+                    // === СИСТЕМНЫЕ ФУНКЦИИ ===
                     {
                         opcode: 'playTone',
                         blockType: Scratch.BlockType.COMMAND,
-                        text: 'играть тон [FREQUENCY] Гц [DURATION] сек',
+                        text: 'играть тон [FREQ] Гц [DURATION] сек',
                         arguments: {
-                            FREQUENCY: {
+                            FREQ: {
                                 type: Scratch.ArgumentType.NUMBER,
                                 defaultValue: 440
                             },
@@ -464,17 +478,28 @@
                         }
                     },
                     {
+                        opcode: 'playNote',
+                        blockType: Scratch.BlockType.COMMAND,
+                        text: 'играть ноту [NOTE] [DURATION]',
+                        arguments: {
+                            NOTE: {
+                                type: Scratch.ArgumentType.STRING,
+                                menu: 'notes'
+                            },
+                            DURATION: {
+                                type: Scratch.ArgumentType.NUMBER,
+                                menu: 'durations'
+                            }
+                        }
+                    },
+                    {
                         opcode: 'setLED',
                         blockType: Scratch.BlockType.COMMAND,
-                        text: 'светодиоды [COLOR] [PATTERN]',
+                        text: 'светодиоды [COLOR]',
                         arguments: {
                             COLOR: {
                                 type: Scratch.ArgumentType.STRING,
                                 menu: 'ledColors'
-                            },
-                            PATTERN: {
-                                type: Scratch.ArgumentType.STRING,
-                                menu: 'ledPatterns'
                             }
                         }
                     },
@@ -490,257 +515,258 @@
                         }
                     },
                     {
-                        opcode: 'getBatteryLevel',
+                        opcode: 'getBattery',
                         blockType: Scratch.BlockType.REPORTER,
                         text: 'уровень батареи %'
                     },
                     {
-                        opcode: 'waitUntilSensor',
+                        opcode: 'beep',
                         blockType: Scratch.BlockType.COMMAND,
-                        text: 'ждать пока датчик [SENSOR] [OPERATOR] [VALUE]',
+                        text: 'пикнуть'
+                    },
+                    
+                    '---',
+                    
+                    // === УТИЛИТЫ ===
+                    {
+                        opcode: 'wait',
+                        blockType: Scratch.BlockType.COMMAND,
+                        text: 'ждать [TIME] сек',
                         arguments: {
-                            SENSOR: {
-                                type: Scratch.ArgumentType.STRING,
-                                menu: 'sensorPorts'
-                            },
-                            OPERATOR: {
-                                type: Scratch.ArgumentType.STRING,
-                                menu: 'operators'
-                            },
-                            VALUE: {
+                            TIME: {
                                 type: Scratch.ArgumentType.NUMBER,
-                                defaultValue: 50
+                                defaultValue: 1
                             }
                         }
+                    },
+                    {
+                        opcode: 'randomMotor',
+                        blockType: Scratch.BlockType.COMMAND,
+                        text: 'случайный мотор [MIN]% [MAX]%'
+                    },
+                    {
+                        opcode: 'calibrateSensor',
+                        blockType: Scratch.BlockType.COMMAND,
+                        text: 'калибровать датчик [PORT]'
                     }
                 ],
                 
                 menus: {
-                    motorPorts: MOTOR_PORTS,
-                    sensorPorts: SENSOR_PORTS,
+                    motorPorts: ['A', 'B', 'C', 'D'],
+                    sensorPorts: ['1', '2', '3', '4'],
                     directions: ['вперед', 'назад'],
-                    motorModes: MOTOR_MODES,
-                    ledColors: ['красный', 'зеленый', 'оранжевый', 'выкл'],
-                    ledPatterns: ['горит', 'мигает', 'пульсирует'],
-                    operators: ['>', '<', '=', '≠']
+                    ledColors: ['красный', 'зеленый', 'оранжевый', 'выкл', 'мигает красный', 'мигает зеленый'],
+                    notes: ['C4', 'D4', 'E4', 'F4', 'G4', 'A4', 'B4', 'C5'],
+                    durations: ['целая', 'половинная', 'четвертная', 'восьмая'],
+                    operators: ['>', '<', '=', '≠', '≥', '≤']
                 }
             };
         }
-
+        
         // === МЕТОДЫ БЛОКОВ ===
         
-        async connect(args) {
-            if (this.wsConnected && this.ws) {
-                this.ws.close();
+        async connect() {
+            if (!this.serialSupported) {
+                throw new Error('WebSerial API не поддерживается в вашем браузере. Используйте Chrome 89+, Edge 89+ или Opera 76+');
             }
             
-            const ip = args.IP || 'localhost:8765';
-            const wsUrl = `ws://${ip}`;
-            
-            return new Promise((resolve, reject) => {
-                const ws = new WebSocket(wsUrl);
-                let connected = false;
+            try {
+                // Запрашиваем порт у пользователя
+                const port = await navigator.serial.requestPort({
+                    filters: [
+                        { usbVendorId: 0x0694 },  // LEGO
+                        { usbVendorId: 0x0E6F }   // LEGO Education
+                    ]
+                });
                 
-                const timeout = setTimeout(() => {
-                    if (!connected) {
-                        ws.close();
-                        reject(new Error('Таймаут подключения'));
-                    }
-                }, 5000);
-                
-                ws.onopen = () => {
-                    connected = true;
-                    clearTimeout(timeout);
-                    this.ws = ws;
-                    this.wsConnected = true;
-                    this.setupWebSocketListeners();
-                    resolve();
-                };
-                
-                ws.onerror = (error) => {
-                    clearTimeout(timeout);
-                    reject(new Error(`Ошибка подключения: ${error}`));
-                };
-            });
+                await this.connectToPort(port);
+                return true;
+            } catch (error) {
+                if (error.name === 'NotFoundError') {
+                    throw new Error('EV3 не найден. Подключите EV3 через USB и убедитесь что он включен.');
+                } else if (error.name === 'SecurityError') {
+                    throw new Error('Нет разрешения на доступ к последовательному порту. Проверьте настройки браузера.');
+                } else {
+                    throw new Error(`Ошибка подключения: ${error.message}`);
+                }
+            }
         }
         
         disconnect() {
-            if (this.ws) {
-                this.ws.close();
-                this.ws = null;
-                this.wsConnected = false;
+            if (this.reading && this.reader) {
+                this.reading = false;
+                this.reader.cancel();
+                this.reader = null;
             }
-            this.stopSensorPolling();
+            
+            if (this.writer) {
+                this.writer.releaseLock();
+                this.writer = null;
+            }
+            
+            if (this.device) {
+                this.device.close();
+                this.device = null;
+            }
+            
+            this.connected = false;
+            console.log('EV3 отключен');
         }
         
         isConnected() {
-            return this.wsConnected;
+            return this.connected;
+        }
+        
+        isSerialSupported() {
+            return this.serialSupported;
         }
         
         async motorOn(args) {
+            if (!this.connected) return;
+            
             const direction = args.DIRECTION === 'вперед' ? 1 : -1;
             const power = Math.min(100, Math.max(0, args.POWER));
             const speed = direction * power;
             
-            await this.sendCommand('motor_on', {
-                port: args.PORT,
-                speed: speed
-            });
-            
-            this.motorState[args.PORT].speed = speed;
+            await this.sendMotorCommand(args.PORT, 'ON', speed);
+            this.motorStates[args.PORT].speed = speed;
         }
         
         async motorOnFor(args) {
-            const direction = args.DIRECTION === 'вперед' ? 1 : -1;
-            const power = Math.min(100, Math.max(0, args.POWER));
-            const speed = direction * power;
+            if (!this.connected) return;
             
-            await this.sendCommand('motor_on_for', {
-                port: args.PORT,
-                speed: speed,
-                duration: args.DURATION
+            await this.motorOn(args);
+            
+            // Ждем указанное время
+            await new Promise(resolve => {
+                setTimeout(async () => {
+                    await this.sendMotorCommand(args.PORT, 'OFF');
+                    this.motorStates[args.PORT].speed = 0;
+                    resolve();
+                }, args.TIME * 1000);
             });
         }
         
         async motorOff(args) {
-            await this.sendCommand('motor_off', {
-                port: args.PORT,
-                mode: args.MODE
-            });
+            if (!this.connected) return;
             
-            this.motorState[args.PORT].speed = 0;
-            this.motorState[args.PORT].mode = args.MODE;
+            await this.sendMotorCommand(args.PORT, 'OFF');
+            this.motorStates[args.PORT].speed = 0;
         }
         
         async stopAllMotors() {
-            await this.sendCommand('stop_all_motors');
+            if (!this.connected) return;
             
-            for (const port of MOTOR_PORTS) {
-                this.motorState[port].speed = 0;
-                this.motorState[port].mode = 'COAST';
+            for (const port of ['A', 'B', 'C', 'D']) {
+                await this.sendMotorCommand(port, 'OFF');
+                this.motorStates[port].speed = 0;
             }
         }
         
         async motorSetSpeed(args) {
-            const speed = Math.min(100, Math.max(0, args.SPEED));
-            await this.sendCommand('motor_set_speed', {
-                port: args.PORT,
-                speed: speed
-            });
+            if (!this.connected) return;
             
-            this.motorState[args.PORT].speed = speed;
+            const speed = Math.min(100, Math.max(0, args.SPEED));
+            await this.sendMotorCommand(args.PORT, 'SPEED', speed);
+            this.motorStates[args.PORT].speed = speed;
         }
         
         async motorGoToPosition(args) {
-            await this.sendCommand('motor_go_to_position', {
-                port: args.PORT,
-                position: args.POSITION
-            });
+            if (!this.connected) return;
+            
+            await this.sendMotorCommand(args.PORT, 'GOTO', args.POSITION);
         }
         
         async motorResetPosition(args) {
-            await this.sendCommand('motor_reset_position', {
-                port: args.PORT
-            });
+            if (!this.connected) return;
             
-            this.motorState[args.PORT].position = 0;
+            await this.sendMotorCommand(args.PORT, 'RESET');
+            this.motorStates[args.PORT].position = 0;
         }
         
         getMotorPosition(args) {
-            return this.motorState[args.PORT]?.position || 0;
+            return this.motorStates[args.PORT]?.position || 0;
         }
         
         getMotorSpeed(args) {
-            return Math.abs(this.motorState[args.PORT]?.speed || 0);
+            return Math.abs(this.motorStates[args.PORT]?.speed || 0);
         }
         
         async tankMove(args) {
-            await this.sendCommand('tank_move', {
-                left: args.LEFT,
-                right: args.RIGHT
-            });
+            if (!this.connected) return;
+            
+            const left = Math.min(100, Math.max(-100, args.LEFT));
+            const right = Math.min(100, Math.max(-100, args.RIGHT));
+            
+            await this.sendMotorCommand('A', 'TANK_LEFT', left);
+            await this.sendMotorCommand('B', 'TANK_RIGHT', right);
         }
         
         async tankMoveFor(args) {
-            await this.sendCommand('tank_move_for', {
-                left: args.LEFT,
-                right: args.RIGHT,
-                duration: args.DURATION
+            if (!this.connected) return;
+            
+            await this.tankMove(args);
+            
+            await new Promise(resolve => {
+                setTimeout(async () => {
+                    await this.sendMotorCommand('A', 'OFF');
+                    await this.sendMotorCommand('B', 'OFF');
+                    resolve();
+                }, args.TIME * 1000);
             });
         }
         
         async tankStop() {
-            await this.sendCommand('tank_stop');
+            if (!this.connected) return;
+            
+            await this.sendMotorCommand('A', 'OFF');
+            await this.sendMotorCommand('B', 'OFF');
+            this.motorStates['A'].speed = 0;
+            this.motorStates['B'].speed = 0;
         }
         
-        getSensorValue(args) {
-            return this.sensorCache[args.SENSOR]?.value || 0;
+        getSensor(args) {
+            return this.sensorValues[args.PORT] || 0;
         }
         
         getTouchSensor(args) {
-            const value = this.sensorCache[args.SENSOR]?.value || 0;
-            return value > 0.5;
-        }
-        
-        getColorSensor(args) {
-            // Возвращаем номер цвета (0-7)
-            const value = this.sensorCache[args.SENSOR]?.value || 0;
-            return Math.floor(value);
+            const value = this.sensorValues[args.PORT] || 0;
+            return value > 50; // Датчик касания возвращает 0 или 100
         }
         
         getDistance(args) {
-            return this.sensorCache[args.SENSOR]?.value || 0;
+            const value = this.sensorValues[args.PORT] || 0;
+            return Math.min(255, value); // Ультразвуковой датчик 0-255 см
+        }
+        
+        getColor(args) {
+            const value = this.sensorValues[args.PORT] || 0;
+            return value % 8; // Цвета 0-7
         }
         
         getAngle(args) {
-            return this.sensorCache[args.SENSOR]?.value || 0;
+            return this.sensorValues[args.PORT] || 0;
         }
         
         getReflectedLight(args) {
-            return Math.min(100, Math.max(0, this.sensorCache[args.SENSOR]?.value || 0));
-        }
-        
-        async playTone(args) {
-            await this.sendCommand('play_tone', {
-                frequency: args.FREQUENCY,
-                duration: args.DURATION
-            });
-        }
-        
-        async setLED(args) {
-            await this.sendCommand('set_led', {
-                color: args.COLOR,
-                pattern: args.PATTERN
-            });
-        }
-        
-        async sayText(args) {
-            await this.sendCommand('say_text', {
-                text: args.TEXT
-            });
-        }
-        
-        async getBatteryLevel() {
-            try {
-                const response = await this.sendCommand('get_battery');
-                return response.level || 100;
-            } catch {
-                return 100;
-            }
+            const value = this.sensorValues[args.PORT] || 0;
+            return Math.min(100, Math.max(0, value));
         }
         
         async waitUntilSensor(args) {
             return new Promise((resolve) => {
                 const checkSensor = () => {
-                    const value = this.sensorCache[args.SENSOR]?.value || 0;
+                    const value = this.sensorValues[args.PORT] || 0;
                     const target = args.VALUE;
                     
                     let conditionMet = false;
                     switch (args.OPERATOR) {
                         case '>': conditionMet = value > target; break;
                         case '<': conditionMet = value < target; break;
-                        case '=': conditionMet = Math.abs(value - target) < 1; break;
-                        case '≠': conditionMet = Math.abs(value - target) >= 1; break;
+                        case '=': conditionMet = Math.abs(value - target) < 2; break;
+                        case '≠': conditionMet = Math.abs(value - target) >= 2; break;
+                        case '≥': conditionMet = value >= target; break;
+                        case '≤': conditionMet = value <= target; break;
                     }
                     
                     if (conditionMet) {
@@ -754,49 +780,99 @@
             });
         }
         
-        setupWebSocketListeners() {
-            if (!this.ws) return;
+        async playTone(args) {
+            if (!this.connected) return;
             
-            this.ws.onmessage = (event) => {
-                try {
-                    const data = JSON.parse(event.data);
-                    
-                    if (data.type === 'sensor_update') {
-                        for (const [port, sensorData] of Object.entries(data.data)) {
-                            if (this.sensorCache[port]) {
-                                Object.assign(this.sensorCache[port], sensorData);
-                            }
-                        }
-                    }
-                    
-                    if (data.type === 'motor_update') {
-                        for (const [port, motorData] of Object.entries(data.data)) {
-                            if (this.motorState[port]) {
-                                Object.assign(this.motorState[port], motorData);
-                            }
-                        }
-                    }
-                    
-                    if (data.id && this.pendingCommands.has(data.id)) {
-                        const pending = this.pendingCommands.get(data.id);
-                        clearTimeout(pending.timeout);
-                        
-                        if (data.success) {
-                            pending.resolve(data);
-                        } else {
-                            pending.reject(new Error(data.error));
-                        }
-                        
-                        this.pendingCommands.delete(data.id);
-                    }
-                    
-                } catch (error) {
-                    console.error('Error processing WebSocket message:', error);
-                }
+            await this.sendCommand(`TONE:${args.FREQ}:${args.DURATION * 1000}`);
+        }
+        
+        async playNote(args) {
+            if (!this.connected) return;
+            
+            const noteFreqs = {
+                'C4': 261.63, 'D4': 293.66, 'E4': 329.63,
+                'F4': 349.23, 'G4': 392.00, 'A4': 440.00,
+                'B4': 493.88, 'C5': 523.25
             };
+            
+            const durationMap = {
+                'целая': 1000,
+                'половинная': 500,
+                'четвертная': 250,
+                'восьмая': 125
+            };
+            
+            const freq = noteFreqs[args.NOTE] || 440;
+            const duration = durationMap[args.DURATION] || 250;
+            
+            await this.sendCommand(`TONE:${freq}:${duration}`);
+        }
+        
+        async setLED(args) {
+            if (!this.connected) return;
+            
+            const colorMap = {
+                'красный': 'RED',
+                'зеленый': 'GREEN',
+                'оранжевый': 'ORANGE',
+                'выкл': 'OFF',
+                'мигает красный': 'BLINK_RED',
+                'мигает зеленый': 'BLINK_GREEN'
+            };
+            
+            const color = colorMap[args.COLOR] || 'OFF';
+            await this.sendCommand(`LED:${color}`);
+        }
+        
+        async sayText(args) {
+            if (!this.connected) return;
+            
+            await this.sendCommand(`SAY:${args.TEXT}`);
+        }
+        
+        getBattery() {
+            return this.batteryLevel || 100;
+        }
+        
+        async beep() {
+            if (!this.connected) return;
+            
+            await this.playTone({ FREQ: 440, DURATION: 0.2 });
+        }
+        
+        wait(args) {
+            return new Promise(resolve => {
+                setTimeout(resolve, args.TIME * 1000);
+            });
+        }
+        
+        async randomMotor() {
+            if (!this.connected) return;
+            
+            const ports = ['A', 'B', 'C', 'D'];
+            const randomPort = ports[Math.floor(Math.random() * ports.length)];
+            const randomSpeed = Math.floor(Math.random() * 101);
+            
+            await this.sendMotorCommand(randomPort, 'ON', randomSpeed);
+            
+            // Выключаем через 1 секунду
+            setTimeout(async () => {
+                await this.sendMotorCommand(randomPort, 'OFF');
+            }, 1000);
+        }
+        
+        async calibrateSensor(args) {
+            if (!this.connected) return;
+            
+            await this.sendCommand(`CALIBRATE:${args.PORT}`);
         }
     }
     
     // Регистрация расширения
-    Scratch.extensions.register(new EV3Extension());
+    if (Scratch.extensions.unsandboxed) {
+        Scratch.extensions.register(new EV3LocalExtension());
+    } else {
+        console.warn('EV3 Local Extension requires unsandboxed mode in TurboWarp');
+    }
 })(Scratch);
+  

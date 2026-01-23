@@ -1,6 +1,6 @@
 {
     "name": "EV3 Full Control",
-    "description": "Полное управление LEGO EV3 с точным позиционированием",
+    "description": "Полное управление LEGO EV3",
     "version": "2.0.0",
     "extension": {
         "url": "https://vetalbelow-cmd.github.io/scratch-ev3-extension/ev3-full.js"

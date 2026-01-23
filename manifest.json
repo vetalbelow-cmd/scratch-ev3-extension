@@ -1,10 +1,10 @@
 {
-    "name": "EV3 Control",
-    "description": "Управление LEGO Mindstorms EV3 из Scratch",
-    "version": "1.0",
+    "name": "EV3 Full Control",
+    "description": "Полное управление LEGO EV3: моторы, датчики, точное позиционирование",
+    "version": "2.0.0",
     "permissions": ["bluetooth"],
-    "icon": "icon.svg",
+    "icon": "icon.png",
     "extension": {
-        "url": "ev3.js"
+        "url": "ev3-full.js"
     }
 }

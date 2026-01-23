@@ -1,20 +1,29 @@
 {
-  "name": "Scratch LEGO EV3 Extension",
-  "version": "1.0.0",
-  "description": "Подключение LEGO EV3 к Scratch через WebSocket или Serial",
-  "permissions": [
-    "serial"
+  "name": "LEGO EV3 Extended",
+  "version": "3.0.0",
+  "description": "Расширенное дополнение LEGO EV3 для Scratch/TurboWarp с WebSocket поддержкой",
+  "manifest_version": 3,
+  "permissions": [],
+  "host_permissions": [
+    "*://localhost/*",
+    "ws://localhost:8765/*",
+    "http://ev3dev.local/*"
   ],
   "content_scripts": [
     {
       "matches": [
-        "https://*.scratch.mit.edu/*",
-        "https://*.turbowarp.org/*"
+        "https://*.turbowarp.org/*",
+        "https://*.scratch.mit.edu/*"
       ],
       "js": ["ev3-full.js"],
       "run_at": "document_end",
       "all_frames": true
     }
   ],
-  "manifest_version": 3
+  "web_accessible_resources": [
+    {
+      "resources": ["ev3-full.js"],
+      "matches": ["<all_urls>"]
+    }
+  ]
 }

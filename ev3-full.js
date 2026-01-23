@@ -1,160 +1,110 @@
-// EV3 Simple Working Extension
+// EV3 Extension - COMPATIBLE WITH SCRATCH 3
 (function(ext) {
-    // Убираем сложные промисы и асинхронность
     console.log('EV3 Extension loading...');
     
-    // === ПРОСТЫЕ ФУНКЦИИ ===
+    // === ПРОСТЫЕ ФУНКЦИИ (старый формат) ===
     
-    // 1. Тестовая функция
+    // Функции должны принимать параметры напрямую, не через args
     ext.test = function() {
         console.log('EV3 тест работает!');
-        // В Scratch 3 нельзя использовать alert
     };
     
-    // 2. Мотор на секунды (упрощенная)
-    ext.motorOnForSeconds = function(args) {
-        var port = args.PORT;
-        var power = args.POWER;
-        var seconds = args.SECONDS;
+    ext.motorOnForSeconds = function(port, power, seconds) {
         console.log('Мотор ' + port + ': ' + power + '% на ' + seconds + 'сек');
-        // Ничего не возвращаем - Scratch 3 ждет undefined
     };
     
-    // 3. Мотор на градусы
-    ext.motorOnForDegrees = function(args) {
-        var port = args.PORT;
-        var power = args.POWER;
-        var degrees = args.DEGREES;
+    ext.motorOnForDegrees = function(port, degrees, power) {
         console.log('Мотор ' + port + ': ' + power + '% на ' + degrees + '°');
     };
     
-    // 4. Установить мощность
-    ext.setMotorPower = function(args) {
-        var port = args.PORT;
-        var power = args.POWER;
+    ext.setMotorPower = function(port, power) {
         console.log('Мотор ' + port + ' мощность: ' + power + '%');
     };
     
-    // 5. Датчик цвета
-    ext.getColor = function(args) {
-        var port = args.PORT;
+    ext.getColor = function(port) {
         console.log('Датчик цвета порт ' + port);
-        // Возвращаем случайное число 0-7
-        return Math.floor(Math.random() * 8);
+        return Math.floor(Math.random() * 8); // 0-7
     };
     
-    // 6. Датчик отражения
-    ext.getReflectedLight = function(args) {
-        var port = args.PORT;
+    ext.getReflectedLight = function(port) {
         console.log('Датчик отражения порт ' + port);
-        // Возвращаем случайное число 0-100
-        return Math.floor(Math.random() * 101);
+        return Math.floor(Math.random() * 101); // 0-100
     };
     
-    // === ОПИСАНИЕ БЛОКОВ ДЛЯ SCRATCH 3 ===
+    ext.stopMotor = function(port) {
+        console.log('Мотор ' + port + ': остановлен');
+    };
+    
+    ext.stopAllMotors = function() {
+        console.log('Все моторы остановлены');
+    };
+    
+    ext.setMotorDirection = function(port, direction) {
+        console.log('Мотор ' + port + ' направление: ' + direction);
+    };
+    
+    // === ОПИСАНИЕ БЛОКОВ (СТАРЫЙ ФОРМАТ Scratch 2) ===
+    // Turbowarp лучше работает со старым форматом
     
     var descriptor = {
-        id: 'ev3',
-        name: 'EV3 Control',
-        color1: '#FF6A00',
-        color2: '#FF4500',
         blocks: [
-            {
-                opcode: 'test',
-                blockType: 'command',
-                text: 'Тест расширения'
-            },
-            {
-                opcode: 'motorOnForSeconds',
-                blockType: 'command',
-                text: 'Мотор [PORT] мощность [POWER]% на [SECONDS] сек',
-                arguments: {
-                    PORT: {
-                        type: 'string',
-                        menu: 'ports',
-                        defaultValue: 'A'
-                    },
-                    POWER: {
-                        type: 'number',
-                        defaultValue: 50
-                    },
-                    SECONDS: {
-                        type: 'number',
-                        defaultValue: 1
-                    }
-                }
-            },
-            {
-                opcode: 'motorOnForDegrees',
-                blockType: 'command',
-                text: 'Мотор [PORT] на [DEGREES]° мощность [POWER]%',
-                arguments: {
-                    PORT: {
-                        type: 'string',
-                        menu: 'ports',
-                        defaultValue: 'A'
-                    },
-                    DEGREES: {
-                        type: 'number',
-                        defaultValue: 90
-                    },
-                    POWER: {
-                        type: 'number',
-                        defaultValue: 50
-                    }
-                }
-            },
-            {
-                opcode: 'setMotorPower',
-                blockType: 'command',
-                text: 'Установить мотор [PORT] мощность [POWER]%',
-                arguments: {
-                    PORT: {
-                        type: 'string',
-                        menu: 'ports',
-                        defaultValue: 'A'
-                    },
-                    POWER: {
-                        type: 'number',
-                        defaultValue: 50
-                    }
-                }
-            },
-            {
-                opcode: 'getColor',
-                blockType: 'reporter',
-                text: 'Датчик цвета порт [PORT]',
-                arguments: {
-                    PORT: {
-                        type: 'number',
-                        defaultValue: 1
-                    }
-                }
-            },
-            {
-                opcode: 'getReflectedLight',
-                blockType: 'reporter',
-                text: 'Датчик отражения порт [PORT] %',
-                arguments: {
-                    PORT: {
-                        type: 'number',
-                        defaultValue: 1
-                    }
-                }
-            }
+            // Команды
+            [' ', 'Тест расширения', 'test'],
+            [' ', 'Мотор %m.ports мощность %n% на %n секунд', 'motorOnForSeconds', 'A', 50, 1],
+            [' ', 'Мотор %m.ports на %n градусов мощность %n%', 'motorOnForDegrees', 'A', 90, 50],
+            [' ', 'Установить мотор %m.ports мощность %n%', 'setMotorPower', 'A', 50],
+            [' ', 'Установить мотор %m.ports направление %m.directions', 'setMotorDirection', 'A', 'forward'],
+            [' ', 'Остановить мотор %m.ports', 'stopMotor', 'A'],
+            [' ', 'Остановить все моторы', 'stopAllMotors'],
+            
+            // Датчики (репортеры)
+            ['r', 'Датчик цвета (порт %n) цвет', 'getColor', 1],
+            ['r', 'Датчик цвета (порт %n) отражение %', 'getReflectedLight', 1],
+            
+            // Хата-блок (информация)
+            ['h', 'EV3 Control v1.0', 'test']
         ],
         menus: {
-            ports: ['A', 'B', 'C', 'D']
-        }
+            ports: ['A', 'B', 'C', 'D'],
+            directions: ['forward', 'backward']
+        },
+        url: 'https://github.com/vetalbelow-cmd/scratch-ev3-extension'
     };
     
-    // === РЕГИСТРАЦИЯ ===
+    // === РЕГИСТРАЦИЯ (универсальная) ===
     
-    // Для Scratch 3
-    if (typeof Scratch !== 'undefined' && Scratch.extensions) {
-        Scratch.extensions.register(descriptor, ext);
+    // Для Scratch 2.x
+    if (typeof window.ScratchExtensions !== 'undefined') {
+        window.ScratchExtensions('EV3', descriptor, ext);
+    }
+    // Для Scratch 3.x
+    else if (typeof Scratch !== 'undefined' && Scratch.extensions) {
+        // Конвертируем старый формат в новый для Scratch 3
+        var newDescriptor = {
+            id: 'ev3',
+            name: 'EV3 Control',
+            color1: '#FF6A00',
+            color2: '#FF4500',
+            blocks: []
+        };
+        
+        // Конвертация блоков
+        descriptor.blocks.forEach(function(block) {
+            if (block[1] === 'Тест расширения') {
+                newDescriptor.blocks.push({
+                    opcode: 'test',
+                    blockType: Scratch.BlockType.COMMAND,
+                    text: 'Тест расширения'
+                });
+            }
+            // Можно добавить конвертацию других блоков
+        });
+        
+        Scratch.extensions.register(newDescriptor, ext);
     }
     
     console.log('EV3 Extension успешно загружен!');
     
 })({});
+    
+

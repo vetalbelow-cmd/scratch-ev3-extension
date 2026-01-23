@@ -1,30 +1,19 @@
 {
-  "name": "LEGO EV3 Local",
+  "name": "LEGO EV3 Local Extension",
   "version": "4.0.0",
-  "description": "Локальное управление EV3 через WebSerial API (без сервера)",
+  "description": "Локальное управление EV3 через WebSerial API для TurboWarp",
   "manifest_version": 3,
   "permissions": [
     "serial"
   ],
   "host_permissions": [
-    "*://*.turbowarp.org/*",
-    "*://*.scratch.mit.edu/*"
+    "https://turbowarp.org/*"
   ],
   "content_scripts": [
     {
-      "matches": [
-        "https://*.turbowarp.org/*",
-        "https://*.scratch.mit.edu/*"
-      ],
+      "matches": ["https://turbowarp.org/editor*"],
       "js": ["ev3-full.js"],
-      "run_at": "document_end",
-      "all_frames": false
-    }
-  ],
-  "web_accessible_resources": [
-    {
-      "resources": ["ev3-full.js"],
-      "matches": ["<all_urls>"]
+      "run_at": "document_end"
     }
   ]
 }

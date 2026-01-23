@@ -1,8 +1,8 @@
 // ev3-full.js - Полная версия расширения EV3 для Blockly
 
 // ===== ОСНОВНЫЕ НАСТРОЙКИ =====
-var EV3_URL = 'http://192.168.0.103';
-var EV3_TOKEN = 'ABC123';
+var EV3_URL = 'http://192.168.0.103'; // Замените на IP вашего EV3
+var EV3_TOKEN = 'ABC123'; // Замените на ваш токен
 
 // ===== ОПРЕДЕЛЕНИЕ БЛОКОВ =====
 
@@ -97,7 +97,7 @@ Blockly.Blocks['ev3_motor_time'] = {
   }
 };
 
-// 6. Блок: Включить мотор на количество градусов
+// 6. Блок: Включить мотор на градусы (НОВЫЙ)
 Blockly.Blocks['ev3_motor_degrees'] = {
   init: function() {
     this.appendDummyInput()
@@ -118,7 +118,7 @@ Blockly.Blocks['ev3_motor_degrees'] = {
     this.setPreviousStatement(true, null);
     this.setNextStatement(true, null);
     this.setColour(65);
-    this.setTooltip("Вращает мотор на заданное количество градусов с указанной мощностью");
+    this.setTooltip("Вращает мотор на заданное количество градусов");
     this.setHelpUrl("");
   }
 };
@@ -141,7 +141,7 @@ Blockly.Blocks['ev3_touch_sensor'] = {
   }
 };
 
-// 8. Блок: Значение датчика цвета (режим ЦВЕТ)
+// 8. Блок: Датчик цвета - режим ЦВЕТ (НОВЫЙ)
 Blockly.Blocks['ev3_color_sensor_color'] = {
   init: function() {
     this.appendDummyInput()
@@ -154,12 +154,12 @@ Blockly.Blocks['ev3_color_sensor_color'] = {
         ]), "PORT");
     this.setOutput(true, 'Number');
     this.setColour(230);
-    this.setTooltip("Возвращает номер цвета (0=нет цвета, 1=черный, 2=синий, 3=зеленный, 4=желтый, 5=красный, 6=белый, 7=коричневый)");
+    this.setTooltip("Возвращает номер цвета (0-нет цвета, 1-черный, 2-синий, 3-зеленый, 4-желтый, 5-красный, 6-белый, 7-коричневый)");
     this.setHelpUrl("");
   }
 };
 
-// 9. Блок: Значение датчика цвета (режим ЯРКОСТЬ)
+// 9. Блок: Датчик цвета - режим ЯРКОСТЬ (НОВЫЙ)
 Blockly.Blocks['ev3_color_sensor_reflected'] = {
   init: function() {
     this.appendDummyInput()
@@ -172,7 +172,7 @@ Blockly.Blocks['ev3_color_sensor_reflected'] = {
         ]), "PORT");
     this.setOutput(true, 'Number');
     this.setColour(230);
-    this.setTooltip("Возвращает яркость отраженного света от 0 (темно) до 100 (ярко)");
+    this.setTooltip("Возвращает яркость отраженного света (0-100)");
     this.setHelpUrl("");
   }
 };
@@ -268,30 +268,25 @@ Blockly.Blocks['ev3_led'] = {
 
 // ===== ГЕНЕРАЦИЯ КОДА =====
 
-// 1. Подключиться к EV3
 Blockly.JavaScript['ev3_connect'] = function(block) {
   return 'ev3.connect();\n';
 };
 
-// 2. Отключиться от EV3
 Blockly.JavaScript['ev3_disconnect'] = function(block) {
   return 'ev3.disconnect();\n';
 };
 
-// 3. Включить мотор
 Blockly.JavaScript['ev3_motor_on'] = function(block) {
   var port = block.getFieldValue('PORT');
   var power = block.getFieldValue('POWER');
   return 'ev3.motorOn("' + port + '", ' + power + ');\n';
 };
 
-// 4. Выключить мотор
 Blockly.JavaScript['ev3_motor_off'] = function(block) {
   var port = block.getFieldValue('PORT');
   return 'ev3.motorOff("' + port + '");\n';
 };
 
-// 5. Включить мотор на время
 Blockly.JavaScript['ev3_motor_time'] = function(block) {
   var time = block.getFieldValue('TIME');
   var port = block.getFieldValue('PORT');
@@ -300,7 +295,6 @@ Blockly.JavaScript['ev3_motor_time'] = function(block) {
   return 'ev3.motorTime("' + port + '", ' + time + ', ' + power + ', ' + wait + ');\n';
 };
 
-// 6. Включить мотор на градусы
 Blockly.JavaScript['ev3_motor_degrees'] = function(block) {
   var degrees = block.getFieldValue('DEGREES');
   var port = block.getFieldValue('PORT');
@@ -309,150 +303,50 @@ Blockly.JavaScript['ev3_motor_degrees'] = function(block) {
   return 'ev3.motorDegrees("' + port + '", ' + degrees + ', ' + power + ', ' + wait + ');\n';
 };
 
-// 7. Датчик касания
 Blockly.JavaScript['ev3_touch_sensor'] = function(block) {
   var port = block.getFieldValue('PORT');
   return ['ev3.touchSensor(' + port + ')', Blockly.JavaScript.ORDER_NONE];
 };
 
-// 8. Датчик цвета (режим ЦВЕТ)
 Blockly.JavaScript['ev3_color_sensor_color'] = function(block) {
   var port = block.getFieldValue('PORT');
   return ['ev3.colorSensorColor(' + port + ')', Blockly.JavaScript.ORDER_NONE];
 };
 
-// 9. Датчик цвета (режим ЯРКОСТЬ)
 Blockly.JavaScript['ev3_color_sensor_reflected'] = function(block) {
   var port = block.getFieldValue('PORT');
   return ['ev3.colorSensorReflected(' + port + ')', Blockly.JavaScript.ORDER_NONE];
 };
 
-// 10. Ультразвуковой датчик
 Blockly.JavaScript['ev3_ultrasonic_sensor'] = function(block) {
   var port = block.getFieldValue('PORT');
   return ['ev3.ultrasonicSensor(' + port + ')', Blockly.JavaScript.ORDER_NONE];
 };
 
-// 11. Гироскоп
 Blockly.JavaScript['ev3_gyro_sensor'] = function(block) {
   var port = block.getFieldValue('PORT');
   return ['ev3.gyroSensor(' + port + ')', Blockly.JavaScript.ORDER_NONE];
 };
 
-// 12. Ожидать
 Blockly.JavaScript['ev3_wait'] = function(block) {
   var time = block.getFieldValue('TIME');
   return 'ev3.wait(' + time + ');\n';
 };
 
-// 13. Звуковой сигнал
 Blockly.JavaScript['ev3_beep'] = function(block) {
   return 'ev3.beep();\n';
 };
 
-// 14. Светодиод
 Blockly.JavaScript['ev3_led'] = function(block) {
   var color = block.getFieldValue('COLOR');
   return 'ev3.led("' + color + '");\n';
 };
 
-// ===== КАТЕГОРИЯ ДЛЯ ПАНЕЛИ ИНСТРУМЕНТОВ =====
-Blockly.Extensions.register('ev3_category', function() {
-  this.category = {
-    "kind": "category",
-    "name": "EV3",
-    "colour": "#4a148c",
-    "contents": [
-      {
-        "kind": "block",
-        "type": "ev3_connect"
-      },
-      {
-        "kind": "block",
-        "type": "ev3_disconnect"
-      },
-      {
-        "kind": "sep",
-        "gap": "8"
-      },
-      {
-        "kind": "label",
-        "text": "Моторы"
-      },
-      {
-        "kind": "block",
-        "type": "ev3_motor_on"
-      },
-      {
-        "kind": "block",
-        "type": "ev3_motor_off"
-      },
-      {
-        "kind": "block",
-        "type": "ev3_motor_time"
-      },
-      {
-        "kind": "block",
-        "type": "ev3_motor_degrees"
-      },
-      {
-        "kind": "sep",
-        "gap": "8"
-      },
-      {
-        "kind": "label",
-        "text": "Датчики"
-      },
-      {
-        "kind": "block",
-        "type": "ev3_touch_sensor"
-      },
-      {
-        "kind": "block",
-        "type": "ev3_color_sensor_color"
-      },
-      {
-        "kind": "block",
-        "type": "ev3_color_sensor_reflected"
-      },
-      {
-        "kind": "block",
-        "type": "ev3_ultrasonic_sensor"
-      },
-      {
-        "kind": "block",
-        "type": "ev3_gyro_sensor"
-      },
-      {
-        "kind": "sep",
-        "gap": "8"
-      },
-      {
-        "kind": "label",
-        "text": "Сервис"
-      },
-      {
-        "kind": "block",
-        "type": "ev3_wait"
-      },
-      {
-        "kind": "block",
-        "type": "ev3_beep"
-      },
-      {
-        "kind": "block",
-        "type": "ev3_led"
-      }
-    ]
-  };
-});
-
-// ===== БИБЛИОТЕКА EV3 (ev3.js) =====
-// Этот код должен быть в отдельном файле ev3.js или добавлен здесь:
-
+// ===== БИБЛИОТЕКА EV3 =====
 var ev3 = {
   
-  // Базовая функция отправки команд
+  connected: false,
+  
   send: function(command) {
     if (!this.connected) {
       console.error("EV3 не подключен!");
@@ -478,7 +372,6 @@ var ev3 = {
     }
   },
   
-  // Подключение
   connect: function() {
     try {
       var xhr = new XMLHttpRequest();
@@ -499,13 +392,11 @@ var ev3 = {
     }
   },
   
-  // Отключение
   disconnect: function() {
     this.connected = false;
     console.log("EV3 отключен");
   },
   
-  // Моторы
   motorOn: function(port, power) {
     return this.send("motor" + port + ".duty_cycle_sp = " + power + "\nmotor" + port + ".command = run-forever");
   },
@@ -525,10 +416,10 @@ var ev3 = {
   },
   
   motorDegrees: function(port, degrees, power, wait) {
-    // Устанавливаем режим градусов
+    // Устанавливаем режим абсолютной позиции
     this.send("motor" + port + ".position_mode = 1");
     
-    // Устанавливаем целевую позицию
+    // Получаем текущую позицию и вычисляем целевую
     var currentPos = parseInt(this.send("motor" + port + ".position")) || 0;
     var targetPos = currentPos + parseInt(degrees);
     
@@ -536,7 +427,6 @@ var ev3 = {
     this.send("motor" + port + ".duty_cycle_sp = " + power);
     this.send("motor" + port + ".command = run-to-abs-pos");
     
-    // Если нужно ждать завершения
     if (wait) {
       var isRunning = true;
       while (isRunning) {
@@ -547,60 +437,38 @@ var ev3 = {
     }
   },
   
-  // Датчики
   touchSensor: function(port) {
     var value = this.send("sensor" + port + ".value0");
     return parseInt(value) === 1;
   },
   
   colorSensorColor: function(port) {
-    // Устанавливаем режим датчика цвета (COLOR)
-    this.send("sensor" + port + ".mode = 0");
-    
-    // Читаем значение
+    this.send("sensor" + port + ".mode = 0"); // Режим цвета
     var value = this.send("sensor" + port + ".value0");
-    
-    // Возвращаем номер цвета
     return parseInt(value) || 0;
   },
   
   colorSensorReflected: function(port) {
-    // Устанавливаем режим датчика отраженного света (REFLECTED)
-    this.send("sensor" + port + ".mode = 1");
-    
-    // Читаем значение
+    this.send("sensor" + port + ".mode = 1"); // Режим отраженного света
     var value = this.send("sensor" + port + ".value0");
-    
-    // Преобразуем в проценты (0-100)
     var percent = Math.min(100, Math.max(0, parseInt(value) || 0));
     return percent;
   },
   
   ultrasonicSensor: function(port) {
-    // Устанавливаем режим ультразвукового датчика (DIST-CM)
-    this.send("sensor" + port + ".mode = 0");
-    
-    // Читаем значение
+    this.send("sensor" + port + ".mode = 0"); // Режим расстояния в см
     var value = this.send("sensor" + port + ".value0");
-    
-    // Возвращаем расстояние в см
     return parseInt(value) || 255;
   },
   
   gyroSensor: function(port) {
-    // Устанавливаем режим гироскопа (ANGLE)
-    this.send("sensor" + port + ".mode = 0");
-    
-    // Читаем значение
+    this.send("sensor" + port + ".mode = 0"); // Режим угла
     var value = this.send("sensor" + port + ".value0");
-    
-    // Возвращаем угол
     return parseInt(value) || 0;
   },
   
-  // Сервисные функции
-  wait: function(time) {
-    this.sleep(time * 1000);
+  wait: function(seconds) {
+    this.sleep(seconds * 1000);
   },
   
   sleep: function(ms) {
@@ -609,12 +477,10 @@ var ev3 = {
   },
   
   beep: function() {
-    // Простой звуковой сигнал
     this.send("sound.beep");
   },
   
   led: function(color) {
-    // Управление светодиодами
     var ledMap = {
       "OFF": "0",
       "GREEN": "1",
@@ -628,13 +494,19 @@ var ev3 = {
       "ORANGE_PULSE": "9"
     };
     
-    this.send("leds.left = " + ledMap[color]);
-    this.send("leds.right = " + ledMap[color]);
-  },
-  
-  // Статус подключения
-  connected: false
+    if (ledMap[color]) {
+      this.send("leds.left = " + ledMap[color]);
+      this.send("leds.right = " + ledMap[color]);
+    }
+  }
 };
 
-// ===== РЕГИСТРАЦИЯ РАСШИРЕНИЯ =====
+// ===== РЕГИСТРАЦИЯ КАТЕГОРИИ =====
 console.log("EV3-Full расширение загружено!");
+
+// Добавляем категорию EV3 в Blockly
+if (typeof Blockly !== 'undefined') {
+  Blockly.Extensions.register('ev3_category', function() {
+    // Эта функция будет вызвана при инициализации категории
+  });
+}

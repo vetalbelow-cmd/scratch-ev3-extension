@@ -1,8 +1,10 @@
 {
-    "name": "EV3 Control",
-    "description": "Управление LEGO Mindstorms EV3",
-    "version": "1.0.0",
+    "name": "EV3 Full Control",
+    "description": "Полное управление LEGO EV3: моторы, датчики, точное позиционирование",
+    "version": "2.0.0",
+    "permissions": ["bluetooth"],
+    "icon": "icon.png",
     "extension": {
-        "url": "https://raw.githubusercontent.com/vetalbelow-cmd/scratch-ev3-extension/main/ev3.js"
+        "url": "ev3-full.js"
     }
 }

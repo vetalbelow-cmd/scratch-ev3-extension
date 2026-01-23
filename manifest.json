@@ -1,6 +1,20 @@
 {
-    "name": "EV3 Control",
-    "extension": {
-        "url": "https://vetalbelow-cmd.github.io/scratch-ev3-extension/ev3-full.js"
+  "name": "Scratch LEGO EV3 Extension",
+  "version": "1.0.0",
+  "description": "Подключение LEGO EV3 к Scratch через WebSocket или Serial",
+  "permissions": [
+    "serial"
+  ],
+  "content_scripts": [
+    {
+      "matches": [
+        "https://*.scratch.mit.edu/*",
+        "https://*.turbowarp.org/*"
+      ],
+      "js": ["ev3-full.js"],
+      "run_at": "document_end",
+      "all_frames": true
     }
+  ],
+  "manifest_version": 3
 }

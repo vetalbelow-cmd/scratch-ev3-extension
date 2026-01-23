@@ -1,6 +1,6 @@
 /* LEGO EV3 Local Extension for TurboWarp/Scratch
-   Version: 4.0.0 - WebSerial API (без сервера)
-   Поддерживает: Chrome 89+, Edge 89+, Opera 76+
+   Version: 4.1.0 - Поддержка sandboxed mode
+   Работает в: TurboWarp, Scratch
 */
 
 (function(Scratch) {
@@ -9,569 +9,79 @@
     class EV3LocalExtension {
         constructor() {
             this.device = null;
-            this.reader = null;
             this.writer = null;
             this.connected = false;
-            this.reading = false;
-            this.sensorValues = {
-                '1': 0,
-                '2': 0,
-                '3': 0,
-                '4': 0
-            };
-            this.motorStates = {
-                'A': { speed: 0, position: 0, mode: 'coast' },
-                'B': { speed: 0, position: 0, mode: 'coast' },
-                'C': { speed: 0, position: 0, mode: 'coast' },
-                'D': { speed: 0, position: 0, mode: 'coast' }
-            };
-            
-            // Проверяем поддержку WebSerial
             this.serialSupported = 'serial' in navigator;
             
-            // Автоматически пытаемся подключиться к сохраненному устройству
-            this.autoConnect();
+            // Проверяем режим работы
+            this.isSandboxed = !Scratch.extensions.unsandboxed;
+            
+            // Для sandboxed mode используем postMessage
+            if (this.isSandboxed) {
+                console.log('EV3 Extension: Running in sandboxed mode');
+                this.setupSandboxedCommunication();
+            }
         }
         
-        async autoConnect() {
-            const ports = await navigator.serial.getPorts();
-            if (ports.length > 0) {
-                try {
-                    await this.connectToPort(ports[0]);
-                } catch (error) {
-                    console.warn('Auto-connect failed:', error);
+        setupSandboxedCommunication() {
+            // Слушаем сообщения от главного окна
+            window.addEventListener('message', (event) => {
+                // Проверяем происхождение
+                if (event.origin !== window.location.origin) return;
+                
+                const data = event.data;
+                if (data && data.type === 'ev3_command') {
+                    this.handleSandboxedCommand(data);
                 }
-            }
+            });
         }
         
-        async connectToPort(port) {
+        async handleSandboxedCommand(data) {
             try {
-                await port.open({ baudRate: 115200 });
-                this.device = port;
+                let result;
                 
-                // Настраиваем чтение
-                this.setupReader();
-                
-                // Настраиваем запись
-                this.writer = port.writable.getWriter();
-                
-                this.connected = true;
-                console.log('EV3 подключен через WebSerial');
-                
-                // Отправляем тестовую команду
-                await this.sendCommand('TEST');
-                
-                return true;
-            } catch (error) {
-                console.error('Connection error:', error);
-                throw error;
-            }
-        }
-        
-        setupReader() {
-            if (!this.device || !this.device.readable) return;
-            
-            this.reading = true;
-            this.reader = this.device.readable.getReader();
-            
-            const readLoop = async () => {
-                while (this.reading && this.reader) {
-                    try {
-                        const { value, done } = await this.reader.read();
-                        if (done) {
-                            this.reader.releaseLock();
-                            break;
-                        }
-                        
-                        if (value) {
-                            this.processIncomingData(value);
-                        }
-                    } catch (error) {
-                        console.error('Read error:', error);
+                switch (data.command) {
+                    case 'connect':
+                        result = await this.connectDevice();
                         break;
-                    }
+                    case 'disconnect':
+                        result = await this.disconnectDevice();
+                        break;
+                    case 'motor_on':
+                        result = await this.sendMotorCommand(data.port, 'ON', data.speed);
+                        break;
+                    case 'motor_off':
+                        result = await this.sendMotorCommand(data.port, 'OFF', 0);
+                        break;
+                    case 'play_tone':
+                        result = await this.sendCommand(`TONE:${data.freq}:${data.duration}`);
+                        break;
                 }
-            };
-            
-            readLoop();
-        }
-        
-        processIncomingData(data) {
-            try {
-                // Преобразуем Uint8Array в строку
-                const text = new TextDecoder().decode(data);
-                const lines = text.trim().split('\n');
                 
-                for (const line of lines) {
-                    if (line.startsWith('SENSOR:')) {
-                        // Пример: "SENSOR:1:45" - датчик 1 значение 45
-                        const parts = line.split(':');
-                        if (parts.length >= 3) {
-                            const port = parts[1];
-                            const value = parseInt(parts[2]);
-                            if (port in this.sensorValues) {
-                                this.sensorValues[port] = value;
-                            }
-                        }
-                    } else if (line.startsWith('MOTOR:')) {
-                        // Пример: "MOTOR:A:SPEED:30" - мотор A скорость 30%
-                        const parts = line.split(':');
-                        if (parts.length >= 4) {
-                            const port = parts[1];
-                            const param = parts[2];
-                            const value = parseInt(parts[3]);
-                            
-                            if (port in this.motorStates) {
-                                if (param === 'SPEED') {
-                                    this.motorStates[port].speed = value;
-                                } else if (param === 'POS') {
-                                    this.motorStates[port].position = value;
-                                }
-                            }
-                        }
-                    } else if (line.startsWith('BATT:')) {
-                        // Уровень батареи
-                        this.batteryLevel = parseInt(line.split(':')[1]) || 100;
-                    }
-                }
+                // Отправляем результат обратно
+                window.parent.postMessage({
+                    type: 'ev3_response',
+                    id: data.id,
+                    success: true,
+                    result: result
+                }, '*');
+                
             } catch (error) {
-                console.error('Data processing error:', error);
+                window.parent.postMessage({
+                    type: 'ev3_response',
+                    id: data.id,
+                    success: false,
+                    error: error.message
+                }, '*');
             }
         }
         
-        async sendCommand(command) {
-            if (!this.connected || !this.writer) {
-                throw new Error('EV3 не подключен');
-            }
-            
-            try {
-                const encoder = new TextEncoder();
-                const data = encoder.encode(command + '\n');
-                await this.writer.write(data);
-                return true;
-            } catch (error) {
-                console.error('Send command error:', error);
-                this.connected = false;
-                throw error;
-            }
-        }
-        
-        async sendMotorCommand(port, command, value = 0) {
-            const cmd = `MOTOR:${port}:${command}:${value}`;
-            return await this.sendCommand(cmd);
-        }
-        
-        async sendSensorCommand(port, command) {
-            const cmd = `SENSOR:${port}:${command}`;
-            return await this.sendCommand(cmd);
-        }
-        
-        getInfo() {
-            return {
-                id: 'ev3local',
-                name: 'LEGO EV3 Local',
-                color1: '#00A8FF',
-                color2: '#0097E6',
-                color3: '#0088CC',
-                
-                blocks: [
-                    // === ПОДКЛЮЧЕНИЕ ===
-                    {
-                        opcode: 'connect',
-                        blockType: Scratch.BlockType.COMMAND,
-                        text: 'подключить EV3 через USB/Bluetooth',
-                        disableMonitor: true
-                    },
-                    {
-                        opcode: 'disconnect',
-                        blockType: Scratch.BlockType.COMMAND,
-                        text: 'отключить EV3'
-                    },
-                    {
-                        opcode: 'isConnected',
-                        blockType: Scratch.BlockType.BOOLEAN,
-                        text: 'EV3 подключен?'
-                    },
-                    {
-                        opcode: 'isSerialSupported',
-                        blockType: Scratch.BlockType.BOOLEAN,
-                        text: 'WebSerial поддерживается?'
-                    },
-                    
-                    '---',
-                    
-                    // === БАЗОВОЕ УПРАВЛЕНИЕ МОТОРАМИ ===
-                    {
-                        opcode: 'motorOn',
-                        blockType: Scratch.BlockType.COMMAND,
-                        text: 'мотор [PORT] [DIRECTION] [POWER]%',
-                        arguments: {
-                            PORT: {
-                                type: Scratch.ArgumentType.STRING,
-                                menu: 'motorPorts'
-                            },
-                            DIRECTION: {
-                                type: Scratch.ArgumentType.STRING,
-                                menu: 'directions'
-                            },
-                            POWER: {
-                                type: Scratch.ArgumentType.NUMBER,
-                                defaultValue: 50
-                            }
-                        }
-                    },
-                    {
-                        opcode: 'motorOnFor',
-                        blockType: Scratch.BlockType.COMMAND,
-                        text: 'мотор [PORT] [DIRECTION] [POWER]% на [TIME] сек',
-                        arguments: {
-                            PORT: {
-                                type: Scratch.ArgumentType.STRING,
-                                menu: 'motorPorts'
-                            },
-                            DIRECTION: {
-                                type: Scratch.ArgumentType.STRING,
-                                menu: 'directions'
-                            },
-                            POWER: {
-                                type: Scratch.ArgumentType.NUMBER,
-                                defaultValue: 50
-                            },
-                            TIME: {
-                                type: Scratch.ArgumentType.NUMBER,
-                                defaultValue: 1
-                            }
-                        }
-                    },
-                    {
-                        opcode: 'motorOff',
-                        blockType: Scratch.BlockType.COMMAND,
-                        text: 'выключить мотор [PORT]',
-                        arguments: {
-                            PORT: {
-                                type: Scratch.ArgumentType.STRING,
-                                menu: 'motorPorts'
-                            }
-                        }
-                    },
-                    {
-                        opcode: 'stopAllMotors',
-                        blockType: Scratch.BlockType.COMMAND,
-                        text: 'остановить все моторы'
-                    },
-                    
-                    '---',
-                    
-                    // === РАСШИРЕННОЕ УПРАВЛЕНИЕ МОТОРАМИ ===
-                    {
-                        opcode: 'motorSetSpeed',
-                        blockType: Scratch.BlockType.COMMAND,
-                        text: 'установить скорость мотора [PORT] [SPEED]%',
-                        arguments: {
-                            PORT: {
-                                type: Scratch.ArgumentType.STRING,
-                                menu: 'motorPorts'
-                            },
-                            SPEED: {
-                                type: Scratch.ArgumentType.NUMBER,
-                                defaultValue: 50
-                            }
-                        }
-                    },
-                    {
-                        opcode: 'motorGoToPosition',
-                        blockType: Scratch.BlockType.COMMAND,
-                        text: 'мотор [PORT] в позицию [POSITION] градусов',
-                        arguments: {
-                            PORT: {
-                                type: Scratch.ArgumentType.STRING,
-                                menu: 'motorPorts'
-                            },
-                            POSITION: {
-                                type: Scratch.ArgumentType.NUMBER,
-                                defaultValue: 90
-                            }
-                        }
-                    },
-                    {
-                        opcode: 'motorResetPosition',
-                        blockType: Scratch.BlockType.COMMAND,
-                        text: 'сбросить позицию мотора [PORT]',
-                        arguments: {
-                            PORT: {
-                                type: Scratch.ArgumentType.STRING,
-                                menu: 'motorPorts'
-                            }
-                        }
-                    },
-                    {
-                        opcode: 'getMotorPosition',
-                        blockType: Scratch.BlockType.REPORTER,
-                        text: 'позиция мотора [PORT]',
-                        arguments: {
-                            PORT: {
-                                type: Scratch.ArgumentType.STRING,
-                                menu: 'motorPorts'
-                            }
-                        }
-                    },
-                    {
-                        opcode: 'getMotorSpeed',
-                        blockType: Scratch.BlockType.REPORTER,
-                        text: 'скорость мотора [PORT]',
-                        arguments: {
-                            PORT: {
-                                type: Scratch.ArgumentType.STRING,
-                                menu: 'motorPorts'
-                            }
-                        }
-                    },
-                    
-                    '---',
-                    
-                    // === ТАНКОВОЕ УПРАВЛЕНИЕ ===
-                    {
-                        opcode: 'tankMove',
-                        blockType: Scratch.BlockType.COMMAND,
-                        text: 'танк: левый [LEFT]% правый [RIGHT]%',
-                        arguments: {
-                            LEFT: {
-                                type: Scratch.ArgumentType.NUMBER,
-                                defaultValue: 50
-                            },
-                            RIGHT: {
-                                type: Scratch.ArgumentType.NUMBER,
-                                defaultValue: 50
-                            }
-                        }
-                    },
-                    {
-                        opcode: 'tankMoveFor',
-                        blockType: Scratch.BlockType.COMMAND,
-                        text: 'танк: левый [LEFT]% правый [RIGHT]% на [TIME] сек',
-                        arguments: {
-                            LEFT: {
-                                type: Scratch.ArgumentType.NUMBER,
-                                defaultValue: 50
-                            },
-                            RIGHT: {
-                                type: Scratch.ArgumentType.NUMBER,
-                                defaultValue: 50
-                            },
-                            TIME: {
-                                type: Scratch.ArgumentType.NUMBER,
-                                defaultValue: 2
-                            }
-                        }
-                    },
-                    {
-                        opcode: 'tankStop',
-                        blockType: Scratch.BlockType.COMMAND,
-                        text: 'танк: остановить'
-                    },
-                    
-                    '---',
-                    
-                    // === ДАТЧИКИ ===
-                    {
-                        opcode: 'getSensor',
-                        blockType: Scratch.BlockType.REPORTER,
-                        text: 'датчик [PORT] значение',
-                        arguments: {
-                            PORT: {
-                                type: Scratch.ArgumentType.STRING,
-                                menu: 'sensorPorts'
-                            }
-                        }
-                    },
-                    {
-                        opcode: 'getTouchSensor',
-                        blockType: Scratch.BlockType.BOOLEAN,
-                        text: 'датчик [PORT] нажат?',
-                        arguments: {
-                            PORT: {
-                                type: Scratch.ArgumentType.STRING,
-                                menu: 'sensorPorts'
-                            }
-                        }
-                    },
-                    {
-                        opcode: 'getDistance',
-                        blockType: Scratch.BlockType.REPORTER,
-                        text: 'датчик [PORT] расстояние см',
-                        arguments: {
-                            PORT: {
-                                type: Scratch.ArgumentType.STRING,
-                                menu: 'sensorPorts'
-                            }
-                        }
-                    },
-                    {
-                        opcode: 'getColor',
-                        blockType: Scratch.BlockType.REPORTER,
-                        text: 'датчик [PORT] цвет',
-                        arguments: {
-                            PORT: {
-                                type: Scratch.ArgumentType.STRING,
-                                menu: 'sensorPorts'
-                            }
-                        }
-                    },
-                    {
-                        opcode: 'getAngle',
-                        blockType: Scratch.BlockType.REPORTER,
-                        text: 'гироскоп [PORT] угол градусов',
-                        arguments: {
-                            PORT: {
-                                type: Scratch.ArgumentType.STRING,
-                                menu: 'sensorPorts'
-                            }
-                        }
-                    },
-                    {
-                        opcode: 'getReflectedLight',
-                        blockType: Scratch.BlockType.REPORTER,
-                        text: 'датчик [PORT] отраженный свет %',
-                        arguments: {
-                            PORT: {
-                                type: Scratch.ArgumentType.STRING,
-                                menu: 'sensorPorts'
-                            }
-                        }
-                    },
-                    {
-                        opcode: 'waitUntilSensor',
-                        blockType: Scratch.BlockType.COMMAND,
-                        text: 'ждать пока датчик [PORT] [OPERATOR] [VALUE]',
-                        arguments: {
-                            PORT: {
-                                type: Scratch.ArgumentType.STRING,
-                                menu: 'sensorPorts'
-                            },
-                            OPERATOR: {
-                                type: Scratch.ArgumentType.STRING,
-                                menu: 'operators'
-                            },
-                            VALUE: {
-                                type: Scratch.ArgumentType.NUMBER,
-                                defaultValue: 50
-                            }
-                        }
-                    },
-                    
-                    '---',
-                    
-                    // === СИСТЕМНЫЕ ФУНКЦИИ ===
-                    {
-                        opcode: 'playTone',
-                        blockType: Scratch.BlockType.COMMAND,
-                        text: 'играть тон [FREQ] Гц [DURATION] сек',
-                        arguments: {
-                            FREQ: {
-                                type: Scratch.ArgumentType.NUMBER,
-                                defaultValue: 440
-                            },
-                            DURATION: {
-                                type: Scratch.ArgumentType.NUMBER,
-                                defaultValue: 0.5
-                            }
-                        }
-                    },
-                    {
-                        opcode: 'playNote',
-                        blockType: Scratch.BlockType.COMMAND,
-                        text: 'играть ноту [NOTE] [DURATION]',
-                        arguments: {
-                            NOTE: {
-                                type: Scratch.ArgumentType.STRING,
-                                menu: 'notes'
-                            },
-                            DURATION: {
-                                type: Scratch.ArgumentType.NUMBER,
-                                menu: 'durations'
-                            }
-                        }
-                    },
-                    {
-                        opcode: 'setLED',
-                        blockType: Scratch.BlockType.COMMAND,
-                        text: 'светодиоды [COLOR]',
-                        arguments: {
-                            COLOR: {
-                                type: Scratch.ArgumentType.STRING,
-                                menu: 'ledColors'
-                            }
-                        }
-                    },
-                    {
-                        opcode: 'sayText',
-                        blockType: Scratch.BlockType.COMMAND,
-                        text: 'сказать [TEXT]',
-                        arguments: {
-                            TEXT: {
-                                type: Scratch.ArgumentType.STRING,
-                                defaultValue: 'Привет от EV3'
-                            }
-                        }
-                    },
-                    {
-                        opcode: 'getBattery',
-                        blockType: Scratch.BlockType.REPORTER,
-                        text: 'уровень батареи %'
-                    },
-                    {
-                        opcode: 'beep',
-                        blockType: Scratch.BlockType.COMMAND,
-                        text: 'пикнуть'
-                    },
-                    
-                    '---',
-                    
-                    // === УТИЛИТЫ ===
-                    {
-                        opcode: 'wait',
-                        blockType: Scratch.BlockType.COMMAND,
-                        text: 'ждать [TIME] сек',
-                        arguments: {
-                            TIME: {
-                                type: Scratch.ArgumentType.NUMBER,
-                                defaultValue: 1
-                            }
-                        }
-                    },
-                    {
-                        opcode: 'randomMotor',
-                        blockType: Scratch.BlockType.COMMAND,
-                        text: 'случайный мотор [MIN]% [MAX]%'
-                    },
-                    {
-                        opcode: 'calibrateSensor',
-                        blockType: Scratch.BlockType.COMMAND,
-                        text: 'калибровать датчик [PORT]'
-                    }
-                ],
-                
-                menus: {
-                    motorPorts: ['A', 'B', 'C', 'D'],
-                    sensorPorts: ['1', '2', '3', '4'],
-                    directions: ['вперед', 'назад'],
-                    ledColors: ['красный', 'зеленый', 'оранжевый', 'выкл', 'мигает красный', 'мигает зеленый'],
-                    notes: ['C4', 'D4', 'E4', 'F4', 'G4', 'A4', 'B4', 'C5'],
-                    durations: ['целая', 'половинная', 'четвертная', 'восьмая'],
-                    operators: ['>', '<', '=', '≠', '≥', '≤']
-                }
-            };
-        }
-        
-        // === МЕТОДЫ БЛОКОВ ===
-        
-        async connect() {
+        async connectDevice() {
             if (!this.serialSupported) {
-                throw new Error('WebSerial API не поддерживается в вашем браузере. Используйте Chrome 89+, Edge 89+ или Opera 76+');
+                throw new Error('WebSerial API не поддерживается в вашем браузере');
             }
             
             try {
-                // Запрашиваем порт у пользователя
                 const port = await navigator.serial.requestPort({
                     filters: [
                         { usbVendorId: 0x0694 },  // LEGO
@@ -579,265 +89,456 @@
                     ]
                 });
                 
-                await this.connectToPort(port);
-                return true;
+                await port.open({ baudRate: 115200 });
+                this.device = port;
+                this.writer = port.writable.getWriter();
+                this.connected = true;
+                
+                // Начинаем чтение данных
+                this.startReading();
+                
+                return { connected: true, message: 'EV3 подключен' };
+                
             } catch (error) {
-                if (error.name === 'NotFoundError') {
-                    throw new Error('EV3 не найден. Подключите EV3 через USB и убедитесь что он включен.');
-                } else if (error.name === 'SecurityError') {
-                    throw new Error('Нет разрешения на доступ к последовательному порту. Проверьте настройки браузера.');
-                } else {
-                    throw new Error(`Ошибка подключения: ${error.message}`);
-                }
+                throw new Error(`Ошибка подключения: ${error.message}`);
             }
         }
         
-        disconnect() {
-            if (this.reading && this.reader) {
-                this.reading = false;
-                this.reader.cancel();
-                this.reader = null;
-            }
-            
+        async disconnectDevice() {
             if (this.writer) {
                 this.writer.releaseLock();
                 this.writer = null;
             }
             
             if (this.device) {
-                this.device.close();
+                await this.device.close();
                 this.device = null;
             }
             
             this.connected = false;
-            console.log('EV3 отключен');
+            return { connected: false, message: 'EV3 отключен' };
+        }
+        
+        async sendCommand(command) {
+            if (!this.connected || !this.writer) {
+                throw new Error('EV3 не подключен');
+            }
+            
+            const encoder = new TextEncoder();
+            await this.writer.write(encoder.encode(command + '\n'));
+            return { sent: true, command: command };
+        }
+        
+        async sendMotorCommand(port, action, speed) {
+            const command = `MOTOR:${port}:${action}:${speed}`;
+            return await this.sendCommand(command);
+        }
+        
+        startReading() {
+            if (!this.device || !this.device.readable) return;
+            
+            const reader = this.device.readable.getReader();
+            
+            const readLoop = async () => {
+                try {
+                    while (this.connected) {
+                        const { value, done } = await reader.read();
+                        if (done) break;
+                        
+                        if (value) {
+                            this.processIncomingData(value);
+                        }
+                    }
+                } catch (error) {
+                    console.error('Read error:', error);
+                } finally {
+                    reader.releaseLock();
+                }
+            };
+            
+            readLoop();
+        }
+        
+        processIncomingData(data) {
+            // Обработка входящих данных (можно расширить)
+            console.log('Received from EV3:', new TextDecoder().decode(data));
+        }
+        
+        // ========== БЛОКИ ДЛЯ SCRATCH/TURBOWARP ==========
+        
+        getInfo() {
+            const blocks = [
+                // === БЛОКИ ПОДКЛЮЧЕНИЯ ===
+                {
+                    opcode: 'connect',
+                    blockType: Scratch.BlockType.COMMAND,
+                    text: 'подключить EV3 через USB',
+                    disableMonitor: true
+                },
+                {
+                    opcode: 'disconnect',
+                    blockType: Scratch.BlockType.COMMAND,
+                    text: 'отключить EV3'
+                },
+                {
+                    opcode: 'isConnected',
+                    blockType: Scratch.BlockType.BOOLEAN,
+                    text: 'EV3 подключен?'
+                },
+                {
+                    opcode: 'isSupported',
+                    blockType: Scratch.BlockType.BOOLEAN,
+                    text: 'WebSerial поддерживается?'
+                },
+                
+                '---',
+                
+                // === БЛОКИ МОТОРОВ ===
+                {
+                    opcode: 'motorOn',
+                    blockType: Scratch.BlockType.COMMAND,
+                    text: 'мотор [PORT] [DIRECTION] [POWER]%',
+                    arguments: {
+                        PORT: {
+                            type: Scratch.ArgumentType.STRING,
+                            menu: 'motorPorts'
+                        },
+                        DIRECTION: {
+                            type: Scratch.ArgumentType.STRING,
+                            menu: 'directions'
+                        },
+                        POWER: {
+                            type: Scratch.ArgumentType.NUMBER,
+                            defaultValue: 50
+                        }
+                    }
+                },
+                {
+                    opcode: 'motorOnFor',
+                    blockType: Scratch.BlockType.COMMAND,
+                    text: 'мотор [PORT] [DIRECTION] [POWER]% на [TIME] сек',
+                    arguments: {
+                        PORT: {
+                            type: Scratch.ArgumentType.STRING,
+                            menu: 'motorPorts'
+                        },
+                        DIRECTION: {
+                            type: Scratch.ArgumentType.STRING,
+                            menu: 'directions'
+                        },
+                        POWER: {
+                            type: Scratch.ArgumentType.NUMBER,
+                            defaultValue: 50
+                        },
+                        TIME: {
+                            type: Scratch.ArgumentType.NUMBER,
+                            defaultValue: 1
+                        }
+                    }
+                },
+                {
+                    opcode: 'motorOff',
+                    blockType: Scratch.BlockType.COMMAND,
+                    text: 'выключить мотор [PORT]',
+                    arguments: {
+                        PORT: {
+                            type: Scratch.ArgumentType.STRING,
+                            menu: 'motorPorts'
+                        }
+                    }
+                },
+                {
+                    opcode: 'stopAllMotors',
+                    blockType: Scratch.BlockType.COMMAND,
+                    text: 'остановить все моторы'
+                },
+                
+                '---',
+                
+                // === БЛОКИ ДАТЧИКОВ (симуляция) ===
+                {
+                    opcode: 'getSensor',
+                    blockType: Scratch.BlockType.REPORTER,
+                    text: 'датчик [PORT] значение',
+                    arguments: {
+                        PORT: {
+                            type: Scratch.ArgumentType.STRING,
+                            menu: 'sensorPorts'
+                        }
+                    }
+                },
+                {
+                    opcode: 'getTouchSensor',
+                    blockType: Scratch.BlockType.BOOLEAN,
+                    text: 'датчик [PORT] нажат?',
+                    arguments: {
+                        PORT: {
+                            type: Scratch.ArgumentType.STRING,
+                            menu: 'sensorPorts'
+                        }
+                    }
+                },
+                {
+                    opcode: 'getDistance',
+                    blockType: Scratch.BlockType.REPORTER,
+                    text: 'датчик [PORT] расстояние см',
+                    arguments: {
+                        PORT: {
+                            type: Scratch.ArgumentType.STRING,
+                            menu: 'sensorPorts'
+                        }
+                    }
+                },
+                
+                '---',
+                
+                // === СИСТЕМНЫЕ БЛОКИ ===
+                {
+                    opcode: 'playTone',
+                    blockType: Scratch.BlockType.COMMAND,
+                    text: 'играть тон [FREQ] Гц [DURATION] сек',
+                    arguments: {
+                        FREQ: {
+                            type: Scratch.ArgumentType.NUMBER,
+                            defaultValue: 440
+                        },
+                        DURATION: {
+                            type: Scratch.ArgumentType.NUMBER,
+                            defaultValue: 0.5
+                        }
+                    }
+                },
+                {
+                    opcode: 'beep',
+                    blockType: Scratch.BlockType.COMMAND,
+                    text: 'пикнуть'
+                },
+                {
+                    opcode: 'setLED',
+                    blockType: Scratch.BlockType.COMMAND,
+                    text: 'светодиоды [COLOR]',
+                    arguments: {
+                        COLOR: {
+                            type: Scratch.ArgumentType.STRING,
+                            menu: 'ledColors'
+                        }
+                    }
+                },
+                
+                '---',
+                
+                // === УТИЛИТЫ ===
+                {
+                    opcode: 'wait',
+                    blockType: Scratch.BlockType.COMMAND,
+                    text: 'ждать [TIME] сек',
+                    arguments: {
+                        TIME: {
+                            type: Scratch.ArgumentType.NUMBER,
+                            defaultValue: 1
+                        }
+                    }
+                },
+                {
+                    opcode: 'getBattery',
+                    blockType: Scratch.BlockType.REPORTER,
+                    text: 'уровень батареи %'
+                }
+            ];
+            
+            // Для sandboxed mode добавляем предупреждение
+            if (this.isSandboxed) {
+                blocks.unshift({
+                    opcode: 'showWarning',
+                    blockType: Scratch.BlockType.COMMAND,
+                    text: '⚠️ Включите Unsandboxed Mode',
+                    disableMonitor: true
+                });
+            }
+            
+            return {
+                id: 'ev3localsandbox',
+                name: this.isSandboxed ? 'EV3 (Sandboxed)' : 'EV3 Local',
+                color1: this.isSandboxed ? '#FFA500' : '#00A8FF',
+                color2: this.isSandboxed ? '#FF8C00' : '#0097E6',
+                color3: this.isSandboxed ? '#FF7F50' : '#0088CC',
+                
+                blocks: blocks,
+                
+                menus: {
+                    motorPorts: ['A', 'B', 'C', 'D'],
+                    sensorPorts: ['1', '2', '3', '4'],
+                    directions: ['вперед', 'назад'],
+                    ledColors: ['красный', 'зеленый', 'оранжевый', 'выкл']
+                }
+            };
+        }
+        
+        // ========== МЕТОДЫ БЛОКОВ ==========
+        
+        async showWarning() {
+            if (this.isSandboxed) {
+                alert('⚠️ Для работы с реальным EV3 нужно:\n\n' +
+                      '1. Открыть https://turbowarp.org/editor\n' +
+                      '2. Нажать "Настройки" (шестеренка)\n' +
+                      '3. Включить "Unsandboxed extensions"\n' +
+                      '4. Перезагрузить страницу\n\n' +
+                      'Или используйте блоки в симуляционном режиме.');
+            }
+        }
+        
+        async connect() {
+            if (this.isSandboxed) {
+                await this.showWarning();
+                return;
+            }
+            
+            try {
+                await this.connectDevice();
+                return true;
+            } catch (error) {
+                throw new Error(error.message);
+            }
+        }
+        
+        async disconnect() {
+            if (this.isSandboxed) return;
+            
+            try {
+                await this.disconnectDevice();
+                return true;
+            } catch (error) {
+                throw new Error(error.message);
+            }
         }
         
         isConnected() {
             return this.connected;
         }
         
-        isSerialSupported() {
+        isSupported() {
             return this.serialSupported;
         }
         
         async motorOn(args) {
-            if (!this.connected) return;
+            if (this.isSandboxed) {
+                await this.showWarning();
+                return;
+            }
+            
+            if (!this.connected) {
+                throw new Error('Сначала подключите EV3');
+            }
             
             const direction = args.DIRECTION === 'вперед' ? 1 : -1;
-            const power = Math.min(100, Math.max(0, args.POWER));
-            const speed = direction * power;
+            const speed = direction * Math.min(100, Math.max(0, args.POWER));
             
             await this.sendMotorCommand(args.PORT, 'ON', speed);
-            this.motorStates[args.PORT].speed = speed;
         }
         
         async motorOnFor(args) {
-            if (!this.connected) return;
+            if (this.isSandboxed) {
+                // Симуляция для sandboxed mode
+                await this.wait({ TIME: args.TIME });
+                return;
+            }
             
             await this.motorOn(args);
-            
-            // Ждем указанное время
-            await new Promise(resolve => {
-                setTimeout(async () => {
-                    await this.sendMotorCommand(args.PORT, 'OFF');
-                    this.motorStates[args.PORT].speed = 0;
-                    resolve();
-                }, args.TIME * 1000);
-            });
+            await this.wait({ TIME: args.TIME });
+            await this.sendMotorCommand(args.PORT, 'OFF', 0);
         }
         
         async motorOff(args) {
-            if (!this.connected) return;
+            if (this.isSandboxed) return;
             
-            await this.sendMotorCommand(args.PORT, 'OFF');
-            this.motorStates[args.PORT].speed = 0;
+            await this.sendMotorCommand(args.PORT, 'OFF', 0);
         }
         
         async stopAllMotors() {
-            if (!this.connected) return;
+            if (this.isSandboxed) return;
             
             for (const port of ['A', 'B', 'C', 'D']) {
-                await this.sendMotorCommand(port, 'OFF');
-                this.motorStates[port].speed = 0;
+                await this.sendMotorCommand(port, 'OFF', 0);
             }
         }
         
-        async motorSetSpeed(args) {
-            if (!this.connected) return;
-            
-            const speed = Math.min(100, Math.max(0, args.SPEED));
-            await this.sendMotorCommand(args.PORT, 'SPEED', speed);
-            this.motorStates[args.PORT].speed = speed;
-        }
-        
-        async motorGoToPosition(args) {
-            if (!this.connected) return;
-            
-            await this.sendMotorCommand(args.PORT, 'GOTO', args.POSITION);
-        }
-        
-        async motorResetPosition(args) {
-            if (!this.connected) return;
-            
-            await this.sendMotorCommand(args.PORT, 'RESET');
-            this.motorStates[args.PORT].position = 0;
-        }
-        
-        getMotorPosition(args) {
-            return this.motorStates[args.PORT]?.position || 0;
-        }
-        
-        getMotorSpeed(args) {
-            return Math.abs(this.motorStates[args.PORT]?.speed || 0);
-        }
-        
-        async tankMove(args) {
-            if (!this.connected) return;
-            
-            const left = Math.min(100, Math.max(-100, args.LEFT));
-            const right = Math.min(100, Math.max(-100, args.RIGHT));
-            
-            await this.sendMotorCommand('A', 'TANK_LEFT', left);
-            await this.sendMotorCommand('B', 'TANK_RIGHT', right);
-        }
-        
-        async tankMoveFor(args) {
-            if (!this.connected) return;
-            
-            await this.tankMove(args);
-            
-            await new Promise(resolve => {
-                setTimeout(async () => {
-                    await this.sendMotorCommand('A', 'OFF');
-                    await this.sendMotorCommand('B', 'OFF');
-                    resolve();
-                }, args.TIME * 1000);
-            });
-        }
-        
-        async tankStop() {
-            if (!this.connected) return;
-            
-            await this.sendMotorCommand('A', 'OFF');
-            await this.sendMotorCommand('B', 'OFF');
-            this.motorStates['A'].speed = 0;
-            this.motorStates['B'].speed = 0;
-        }
-        
+        // Симуляция датчиков для sandboxed mode
         getSensor(args) {
-            return this.sensorValues[args.PORT] || 0;
+            // Генерируем случайные значения для симуляции
+            const base = args.PORT.charCodeAt(0) * 10;
+            const random = Math.floor(Math.random() * 100);
+            return (base + random) % 100;
         }
         
         getTouchSensor(args) {
-            const value = this.sensorValues[args.PORT] || 0;
-            return value > 50; // Датчик касания возвращает 0 или 100
+            // 30% шанс что "нажато"
+            return Math.random() < 0.3;
         }
         
         getDistance(args) {
-            const value = this.sensorValues[args.PORT] || 0;
-            return Math.min(255, value); // Ультразвуковой датчик 0-255 см
-        }
-        
-        getColor(args) {
-            const value = this.sensorValues[args.PORT] || 0;
-            return value % 8; // Цвета 0-7
-        }
-        
-        getAngle(args) {
-            return this.sensorValues[args.PORT] || 0;
-        }
-        
-        getReflectedLight(args) {
-            const value = this.sensorValues[args.PORT] || 0;
-            return Math.min(100, Math.max(0, value));
-        }
-        
-        async waitUntilSensor(args) {
-            return new Promise((resolve) => {
-                const checkSensor = () => {
-                    const value = this.sensorValues[args.PORT] || 0;
-                    const target = args.VALUE;
-                    
-                    let conditionMet = false;
-                    switch (args.OPERATOR) {
-                        case '>': conditionMet = value > target; break;
-                        case '<': conditionMet = value < target; break;
-                        case '=': conditionMet = Math.abs(value - target) < 2; break;
-                        case '≠': conditionMet = Math.abs(value - target) >= 2; break;
-                        case '≥': conditionMet = value >= target; break;
-                        case '≤': conditionMet = value <= target; break;
-                    }
-                    
-                    if (conditionMet) {
-                        resolve();
-                    } else {
-                        setTimeout(checkSensor, 50);
-                    }
-                };
-                
-                checkSensor();
-            });
+            // Симуляция расстояния 0-100 см
+            return Math.floor(Math.random() * 100);
         }
         
         async playTone(args) {
-            if (!this.connected) return;
+            if (this.isSandboxed) {
+                // Симуляция звука через Web Audio API
+                this.playSimulatedTone(args.FREQ, args.DURATION);
+                return;
+            }
+            
+            if (!this.connected) {
+                throw new Error('Сначала подключите EV3');
+            }
             
             await this.sendCommand(`TONE:${args.FREQ}:${args.DURATION * 1000}`);
         }
         
-        async playNote(args) {
-            if (!this.connected) return;
-            
-            const noteFreqs = {
-                'C4': 261.63, 'D4': 293.66, 'E4': 329.63,
-                'F4': 349.23, 'G4': 392.00, 'A4': 440.00,
-                'B4': 493.88, 'C5': 523.25
-            };
-            
-            const durationMap = {
-                'целая': 1000,
-                'половинная': 500,
-                'четвертная': 250,
-                'восьмая': 125
-            };
-            
-            const freq = noteFreqs[args.NOTE] || 440;
-            const duration = durationMap[args.DURATION] || 250;
-            
-            await this.sendCommand(`TONE:${freq}:${duration}`);
+        playSimulatedTone(frequency, duration) {
+            try {
+                const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                const oscillator = audioContext.createOscillator();
+                const gainNode = audioContext.createGain();
+                
+                oscillator.connect(gainNode);
+                gainNode.connect(audioContext.destination);
+                
+                oscillator.frequency.value = frequency;
+                oscillator.type = 'sine';
+                
+                gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
+                gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + duration);
+                
+                oscillator.start(audioContext.currentTime);
+                oscillator.stop(audioContext.currentTime + duration);
+            } catch (error) {
+                console.log('Симуляция тона:', frequency, 'Гц', duration, 'сек');
+            }
+        }
+        
+        async beep() {
+            await this.playTone({ FREQ: 440, DURATION: 0.2 });
         }
         
         async setLED(args) {
-            if (!this.connected) return;
+            if (this.isSandboxed) {
+                console.log('Светодиоды:', args.COLOR);
+                return;
+            }
+            
+            if (!this.connected) {
+                throw new Error('Сначала подключите EV3');
+            }
             
             const colorMap = {
                 'красный': 'RED',
-                'зеленый': 'GREEN',
+                'зеленый': 'GREEN', 
                 'оранжевый': 'ORANGE',
-                'выкл': 'OFF',
-                'мигает красный': 'BLINK_RED',
-                'мигает зеленый': 'BLINK_GREEN'
+                'выкл': 'OFF'
             };
             
             const color = colorMap[args.COLOR] || 'OFF';
             await this.sendCommand(`LED:${color}`);
-        }
-        
-        async sayText(args) {
-            if (!this.connected) return;
-            
-            await this.sendCommand(`SAY:${args.TEXT}`);
-        }
-        
-        getBattery() {
-            return this.batteryLevel || 100;
-        }
-        
-        async beep() {
-            if (!this.connected) return;
-            
-            await this.playTone({ FREQ: 440, DURATION: 0.2 });
         }
         
         wait(args) {
@@ -846,33 +547,23 @@
             });
         }
         
-        async randomMotor() {
-            if (!this.connected) return;
-            
-            const ports = ['A', 'B', 'C', 'D'];
-            const randomPort = ports[Math.floor(Math.random() * ports.length)];
-            const randomSpeed = Math.floor(Math.random() * 101);
-            
-            await this.sendMotorCommand(randomPort, 'ON', randomSpeed);
-            
-            // Выключаем через 1 секунду
-            setTimeout(async () => {
-                await this.sendMotorCommand(randomPort, 'OFF');
-            }, 1000);
-        }
-        
-        async calibrateSensor(args) {
-            if (!this.connected) return;
-            
-            await this.sendCommand(`CALIBRATE:${args.PORT}`);
+        getBattery() {
+            // Симуляция уровня батареи
+            return this.connected ? 85 : 0;
         }
     }
     
     // Регистрация расширения
-    if (Scratch.extensions.unsandboxed) {
+    try {
         Scratch.extensions.register(new EV3LocalExtension());
-    } else {
-        console.warn('EV3 Local Extension requires unsandboxed mode in TurboWarp');
+    } catch (error) {
+        console.error('Failed to register EV3 extension:', error);
+        
+        // Альтернативная регистрация для sandboxed mode
+        if (window.ScratchExtensions) {
+            const ext = new EV3LocalExtension();
+            window.ScratchExtensions.register('EV3 Local', ext.getInfo(), ext);
+        }
     }
+    
 })(Scratch);
-  

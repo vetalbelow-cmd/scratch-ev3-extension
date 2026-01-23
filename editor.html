@@ -1,0 +1,392 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>EV3 Editor - TurboWarp с расширением</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        
+        body {
+            background: #1a1a2e;
+            color: white;
+            min-height: 100vh;
+        }
+        
+        .header {
+            background: linear-gradient(45deg, #16213e, #0f3460);
+            padding: 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+        }
+        
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+        
+        .logo h1 {
+            font-size: 1.8em;
+            background: linear-gradient(45deg, #4cc9f0, #4361ee);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        
+        .controls {
+            display: flex;
+            gap: 10px;
+        }
+        
+        .button {
+            background: linear-gradient(45deg, #4361ee, #3a0ca3);
+            color: white;
+            padding: 10px 20px;
+            border-radius: 25px;
+            text-decoration: none;
+            border: none;
+            cursor: pointer;
+            font-weight: bold;
+            transition: all 0.3s ease;
+        }
+        
+        .button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(67, 97, 238, 0.4);
+        }
+        
+        .button-secondary {
+            background: linear-gradient(45deg, #666, #444);
+        }
+        
+        .content {
+            padding: 20px;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        
+        .instructions {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 15px;
+            padding: 25px;
+            margin-bottom: 30px;
+            border-left: 5px solid #4cc9f0;
+        }
+        
+        .instructions h2 {
+            margin-bottom: 15px;
+            color: #4cc9f0;
+        }
+        
+        .step {
+            display: flex;
+            align-items: flex-start;
+            gap: 15px;
+            margin-bottom: 15px;
+            padding: 15px;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 10px;
+        }
+        
+        .step-number {
+            background: #4cc9f0;
+            color: #1a1a2e;
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            flex-shrink: 0;
+        }
+        
+        .turbowarp-container {
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 15px;
+            padding: 20px;
+            margin-bottom: 30px;
+        }
+        
+        .turbowarp-container h2 {
+            margin-bottom: 15px;
+            color: #f72585;
+        }
+        
+        .link-container {
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 10px;
+            padding: 20px;
+            margin: 20px 0;
+        }
+        
+        .code {
+            background: #2d3436;
+            color: #dfe6e9;
+            padding: 15px;
+            border-radius: 10px;
+            font-family: 'Courier New', monospace;
+            margin: 10px 0;
+            overflow-x: auto;
+        }
+        
+        .example-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+            margin-top: 20px;
+        }
+        
+        .example-card {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 10px;
+            padding: 20px;
+            transition: all 0.3s ease;
+            cursor: pointer;
+        }
+        
+        .example-card:hover {
+            background: rgba(255, 255, 255, 0.15);
+            transform: translateY(-5px);
+        }
+        
+        .example-card h3 {
+            color: #f72585;
+            margin-bottom: 10px;
+        }
+        
+        footer {
+            text-align: center;
+            padding: 20px;
+            color: #aaa;
+            font-size: 0.9em;
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+            margin-top: 40px;
+        }
+        
+        .badge {
+            display: inline-block;
+            padding: 3px 8px;
+            background: #4cc9f0;
+            color: #1a1a2e;
+            border-radius: 12px;
+            font-size: 0.8em;
+            font-weight: bold;
+            margin-left: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <div class="logo">
+            <div style="font-size: 2em;">🤖</div>
+            <h1>EV3 Editor</h1>
+        </div>
+        <div class="controls">
+            <button class="button" onclick="openTurboWarp()">▶️ Открыть TurboWarp</button>
+            <button class="button button-secondary" onclick="goHome()">🏠 На главную</button>
+        </div>
+    </div>
+    
+    <div class="content">
+        <div class="instructions">
+            <h2>📋 Как использовать расширение EV3</h2>
+            
+            <div class="step">
+                <div class="step-number">1</div>
+                <div>
+                    <strong>Нажмите кнопку "Открыть TurboWarp" выше</strong>
+                    <p>Откроется новая вкладка с редактором TurboWarp</p>
+                </div>
+            </div>
+            
+            <div class="step">
+                <div class="step-number">2</div>
+                <div>
+                    <strong>Добавьте расширение EV3</strong>
+                    <p>В редакторе нажмите кнопку "Расширения" в левом нижнем углу</p>
+                    <p>Выберите "Добавить расширение" и вставьте этот URL:</p>
+                    <div class="code" id="extensionUrl">Загрузка URL...</div>
+                    <button class="button" onclick="copyExtensionUrl()" style="margin-top: 10px;">
+                        📋 Копировать URL расширения
+                    </button>
+                </div>
+            </div>
+            
+            <div class="step">
+                <div class="step-number">3</div>
+                <div>
+                    <strong>Начните программировать!</strong>
+                    <p>Используйте блоки EV3 для управления моторами и датчиками</p>
+                </div>
+            </div>
+        </div>
+        
+        <div class="turbowarp-container">
+            <h2>💻 Альтернативный способ</h2>
+            <p>Или используйте прямую ссылку с уже подключенным расширением:</p>
+            
+            <div class="link-container">
+                <p>Нажмите на ссылку ниже чтобы открыть TurboWarp с расширением EV3:</p>
+                <a href="#" id="directLink" class="code" style="display: block; color: #4cc9f0; text-decoration: none; margin: 15px 0;">
+                    Загрузка ссылки...
+                </a>
+                <button class="button" onclick="openDirectLink()">
+                    🔗 Открыть TurboWarp с расширением
+                </button>
+            </div>
+        </div>
+        
+        <div class="instructions">
+            <h2>📚 Примеры программ</h2>
+            <div class="example-grid">
+                <div class="example-card" onclick="loadExample(1)">
+                    <h3>Пример 1: Простое движение</h3>
+                    <div class="code">
+когда ⚑ нажат
+  повторять 4 раза
+    мотор A вперед 50%
+    ждать 1 секунд
+    мотор A назад 50%
+    ждать 1 секунд
+  конец
+                    </div>
+                </div>
+                
+                <div class="example-card" onclick="loadExample(2)">
+                    <h3>Пример 2: Датчик касания</h3>
+                    <div class="code">
+когда ⚑ нажат
+  повторять всегда
+    если датчик 1 нажат? то
+      мотор A вперед 70%
+      играть тон 440 Гц 0.3 сек
+    иначе
+      мотор A выключить
+    конец
+  конец
+                    </div>
+                </div>
+                
+                <div class="example-card" onclick="loadExample(3)">
+                    <h3>Пример 3: Избегание препятствий</h3>
+                    <div class="code">
+когда ⚑ нажат
+  повторять всегда
+    если датчик 2 расстояние см < 15 то
+      танк: левый -50% правый 50%
+      ждать 0.5 секунд
+    иначе
+      танк: левый 50% правый 50%
+    конец
+  конец
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <footer>
+        <p>EV3 Editor v4.0 | Для работы требуется браузер с поддержкой WebSerial API</p>
+        <p>Поддерживаемые браузеры: Chrome 89+, Edge 89+, Opera 76+</p>
+    </footer>
+    
+    <script>
+        // Генерируем URL расширения
+        function generateExtensionURL() {
+            const currentUrl = new URL(window.location.href);
+            const baseUrl = currentUrl.origin + currentUrl.pathname.replace('editor.html', '');
+            return baseUrl + 'ev3-full.js';
+        }
+        
+        // Генерируем прямую ссылку на TurboWarp с расширением
+        function generateDirectLink() {
+            const extensionUrl = generateExtensionURL();
+            return `https://turbowarp.org/editor?extension=${encodeURIComponent(extensionUrl)}`;
+        }
+        
+        // Обновление отображаемых URL
+        function updateURLs() {
+            const extensionUrl = generateExtensionURL();
+            const directLink = generateDirectLink();
+            
+            document.getElementById('extensionUrl').textContent = extensionUrl;
+            document.getElementById('directLink').textContent = directLink;
+            document.getElementById('directLink').href = directLink;
+        }
+        
+        // Копирование URL расширения
+        function copyExtensionUrl() {
+            const extensionUrl = generateExtensionURL();
+            navigator.clipboard.writeText(extensionUrl).then(() => {
+                alert('URL расширения скопирован в буфер обмена!\n\nВставьте его в TurboWarp в меню "Расширения"');
+            });
+        }
+        
+        // Открытие TurboWarp в новой вкладке
+        function openTurboWarp() {
+            window.open('https://turbowarp.org/editor', '_blank');
+        }
+        
+        // Открытие прямой ссылки
+        function openDirectLink() {
+            window.open(generateDirectLink(), '_blank');
+        }
+        
+        // Возврат на главную
+        function goHome() {
+            window.location.href = 'index.html';
+        }
+        
+        // Загрузка примеров
+        function loadExample(exampleNumber) {
+            const examples = {
+                1: `когда ⚑ нажат
+  повторять 4 раза
+    мотор A вперед 50%
+    ждать 1 секунд
+    мотор A назад 50%
+    ждать 1 секунд
+  конец`,
+                2: `когда ⚑ нажат
+  повторять всегда
+    если датчик 1 нажат? то
+      мотор A вперед 70%
+      играть тон 440 Гц 0.3 сек
+    иначе
+      мотор A выключить
+    конец
+  конец`,
+                3: `когда ⚑ нажат
+  повторять всегда
+    если датчик 2 расстояние см < 15 то
+      танк: левый -50% правый 50%
+      ждать 0.5 секунд
+    иначе
+      танк: левый 50% правый 50%
+    конец
+  конец`
+            };
+            
+            const code = examples[exampleNumber];
+            if (code) {
+                navigator.clipboard.writeText(code).then(() => {
+                    alert(`Пример ${exampleNumber} скопирован в буфер обмена!\n\nВставьте его в редакторе TurboWarp.`);
+                });
+            }
+        }
+        
+        // Инициализация при загрузке
+        document.addEventListener('DOMContentLoaded', function() {
+            updateURLs();
+        });
+    </script>
+</body>
+</html>

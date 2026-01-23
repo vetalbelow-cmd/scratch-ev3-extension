@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>EV3 Simulator - Тестовый симулятор</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background: #f0f0f0;
+        }
+        .simulator {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            max-width: 600px;
+            margin: 0 auto;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+        }
+        .motor {
+            margin: 10px 0;
+            padding: 10px;
+            background: #e0e0e0;
+            border-radius: 5px;
+        }
+        .sensor {
+            margin: 10px 0;
+            padding: 10px;
+            background: #d0f0d0;
+            border-radius: 5px;
+        }
+        button {
+            margin: 5px;
+            padding: 10px 15px;
+            background: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        button:hover {
+            background: #45a049;
+        }
+    </style>
+</head>
+<body>
+    <div class="simulator">
+        <h1>🎮 EV3 Simulator</h1>
+        <p>Используйте этот симулятор для тестирования без реального EV3</p>
+        
+        <div class="motor">
+            <h3>Мотор A</h3>
+            <button onclick="controlMotor('A', 50)">Вперед 50%</button>
+            <button onclick="controlMotor('A', -50)">Назад 50%</button>
+            <button onclick="controlMotor('A', 0)">Стоп</button>
+            <div>Текущая скорость: <span id="motorA">0%</span></div>
+        </div>
+        
+        <div class="sensor">
+            <h3>Датчик 1 (Касание)</h3>
+            <button onclick="toggleSensor(1)">Нажать/Отпустить</button>
+            <div>Состояние: <span id="sensor1">Не нажат</span></div>
+        </div>
+        
+        <div class="sensor">
+            <h3>Датчик 2 (Расстояние)</h3>
+            <input type="range" min="0" max="100" value="50" oninput="updateDistance(this.value)">
+            <div>Расстояние: <span id="distance">50 см</span></div>
+        </div>
+    </div>
+    
+    <script>
+        function controlMotor(port, speed) {
+            console.log(`Motor ${port}: ${speed}%`);
+            document.getElementById(`motor${port}`).textContent = `${speed}%`;
+            
+            // Эмулируем отправку команды
+            if (window.parent && window.parent.setMotorSpeed) {
+                window.parent.setMotorSpeed(port, speed);
+            }
+        }
+        
+        function toggleSensor(port) {
+            const sensorEl = document.getElementById(`sensor${port}`);
+            const isPressed = sensorEl.textContent === 'Нажат';
+            sensorEl.textContent = isPressed ? 'Не нажат' : 'Нажат';
+            sensorEl.style.color = isPressed ? 'black' : 'red';
+        }
+        
+        function updateDistance(value) {
+            document.getElementById('distance').textContent = `${value} см`;
+        }
+    </script>
+</body>
+</html>

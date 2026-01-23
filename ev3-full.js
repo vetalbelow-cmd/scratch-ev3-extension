@@ -254,7 +254,175 @@
                 },
                 
                 '---',
-                
+                // === БЛОКИ ДЛЯ ДАТЧИКА ЦВЕТА И МОТОРА НА ГРАДУСЫ ===
+
+// 1. Блок: Значение датчика цвета (режим "Цвет")
+Blockly.Blocks['ev3_color_sensor_color'] = {
+  init: function() {
+    this.appendDummyInput()
+        .appendField("значение датчика цвета в режиме ЦВЕТ порт")
+        .appendField(new Blockly.FieldDropdown([
+          ["1", "1"],
+          ["2", "2"],
+          ["3", "3"],
+          ["4", "4"]
+        ]), "PORT");
+    this.setOutput(true, 'Number');
+    this.setColour(230);
+    this.setTooltip("Возвращает номер цвета (0=нет цвета, 1=черный, 2=синий, 3=зеленый, 4=желтый, 5=красный, 6=белый, 7=коричневый)");
+    this.setHelpUrl("");
+  }
+};
+
+Blockly.JavaScript['ev3_color_sensor_color'] = function(block) {
+  var port = block.getFieldValue('PORT');
+  var code = `ev3.colorSensorColor(${port})`;
+  return [code, Blockly.JavaScript.ORDER_NONE];
+};
+
+// 2. Блок: Значение датчика цвета (режим "Яркость отраженного света")
+Blockly.Blocks['ev3_color_sensor_reflected'] = {
+  init: function() {
+    this.appendDummyInput()
+        .appendField("значение датчика цвета в режиме ЯРКОСТЬ порт")
+        .appendField(new Blockly.FieldDropdown([
+          ["1", "1"],
+          ["2", "2"],
+          ["3", "3"],
+          ["4", "4"]
+        ]), "PORT");
+    this.setOutput(true, 'Number');
+    this.setColour(230);
+    this.setTooltip("Возвращает яркость отраженного света от 0 (темно) до 100 (ярко)");
+    this.setHelpUrl("");
+  }
+};
+
+Blockly.JavaScript['ev3_color_sensor_reflected'] = function(block) {
+  var port = block.getFieldValue('PORT');
+  var code = `ev3.colorSensorReflected(${port})`;
+  return [code, Blockly.JavaScript.ORDER_NONE];
+};
+
+// 3. Блок: Включить мотор на количество градусов
+Blockly.Blocks['ev3_motor_degrees'] = {
+  init: function() {
+    this.appendDummyInput()
+        .appendField("включить мотор на")
+        .appendField(new Blockly.FieldNumber(90, 0, 1000, 1), "DEGREES")
+        .appendField("градусов порт")
+        .appendField(new Blockly.FieldDropdown([
+          ["A", "A"],
+          ["B", "B"],
+          ["C", "C"],
+          ["D", "D"]
+        ]), "PORT")
+        .appendField("мощность")
+        .appendField(new Blockly.FieldNumber(50, 0, 100, 1), "POWER");
+    this.appendDummyInput()
+        .appendField("ожидать завершения")
+        .appendField(new Blockly.FieldCheckbox("TRUE"), "WAIT");
+    this.setPreviousStatement(true, null);
+    this.setNextStatement(true, null);
+    this.setColour(65);
+    this.setTooltip("Вращает мотор на заданное количество градусов с указанной мощностью");
+    this.setHelpUrl("");
+  }
+};
+
+Blockly.JavaScript['ev3_motor_degrees'] = function(block) {
+  var degrees = block.getFieldValue('DEGREES');
+  var port = block.getFieldValue('PORT');
+  var power = block.getFieldValue('POWER');
+  var wait = block.getFieldValue('WAIT') === 'TRUE';
+  
+  var code = `ev3.motorDegrees('${port}', ${degrees}, ${power}, ${wait});\n`;
+  return code;
+};
+
+// === ОБНОВЛЕННЫЙ КОД ДЛЯ ev3.js (реализация функций) ===
+
+// Добавьте эти функции в объект ev3 в вашем файле ev3.js:
+
+/*
+// Режимы датчика цвета
+const COLOR_MODES = {
+  COLOR: 0,
+  REFLECTED: 1
+};
+
+// Функция для получения значения датчика цвета в режиме "Цвет"
+ev3.colorSensorColor = function(port) {
+  // Устанавливаем режим датчика цвета
+  ev3.send(`sensor${port}.mode = ${COLOR_MODES.COLOR}`);
+  
+  // Читаем значение
+  let value = ev3.send(`sensor${port}.value0`);
+  
+  // Возвращаем номер цвета
+  return parseInt(value) || 0;
+};
+
+// Функция для получения значения датчика цвета в режиме "Яркость отраженного света"
+ev3.colorSensorReflected = function(port) {
+  // Устанавливаем режим датчика отраженного света
+  ev3.send(`sensor${port}.mode = ${COLOR_MODES.REFLECTED}`);
+  
+  // Читаем значение
+  let value = ev3.send(`sensor${port}.value0`);
+  
+  // Преобразуем в проценты (0-100)
+  let percent = Math.min(100, Math.max(0, parseInt(value) || 0));
+  return percent;
+};
+
+// Функция для включения мотора на заданное количество градусов
+ev3.motorDegrees = function(port, degrees, power, wait = true) {
+  // Устанавливаем режим градусов
+  ev3.send(`motor${port}.position_mode = 1`); // абсолютная позиция
+  
+  // Устанавливаем целевую позицию
+  let currentPos = parseInt(ev3.send(`motor${port}.position`)) || 0;
+  let targetPos = currentPos + parseInt(degrees);
+  
+  ev3.send(`motor${port}.position_sp = ${targetPos}`);
+  
+  // Устанавливаем мощность
+  ev3.send(`motor${port}.duty_cycle_sp = ${power}`);
+  
+  // Запускаем мотор
+  ev3.send(`motor${port}.command = run-to-abs-pos`);
+  
+  // Если нужно ждать завершения
+  if (wait) {
+    let isRunning = true;
+    while (isRunning) {
+      let state = ev3.send(`motor${port}.state`);
+      isRunning = state.includes('running');
+      // Небольшая задержка для проверки
+      ev3.sleep(50);
+    }
+  }
+};
+*/
+
+// === КАТЕГОРИЯ ДЛЯ ПАНЕЛИ БЛОКОВ ===
+// Добавьте эти блоки в вашу категорию EV3:
+
+/*
+{
+  "kind": "block",
+  "type": "ev3_color_sensor_color"
+},
+{
+  "kind": "block",
+  "type": "ev3_color_sensor_reflected"
+},
+{
+  "kind": "block",
+  "type": "ev3_motor_degrees"
+}
+*/
                 // === БЛОКИ ДАТЧИКОВ (симуляция) ===
                 {
                     opcode: 'getSensor',

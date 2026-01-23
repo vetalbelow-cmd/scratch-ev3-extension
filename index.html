@@ -1,1 +1,86 @@
-
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>EV3 Extension for Scratch</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #FF6A00;
+        }
+        .url-box {
+            background: #eee;
+            padding: 15px;
+            border-radius: 5px;
+            font-family: monospace;
+            margin: 20px 0;
+            word-break: break-all;
+        }
+        button {
+            background: #4CAF50;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>⚡ EV3 Расширение для Scratch 3</h1>
+        <p>Чтобы использовать это расширение в Scratch:</p>
+        
+        <ol>
+            <li>Откройте <a href="https://scratch.mit.edu/projects/editor/" target="_blank">Scratch 3</a></li>
+            <li>Нажмите кнопку "Добавить расширение" (синяя, внизу слева)</li>
+            <li>Прокрутите вниз и выберите "Расширение по URL"</li>
+            <li>Вставьте эту ссылку:</li>
+        </ol>
+        
+        <div class="url-box" id="url">https://raw.githubusercontent.com/vetalbelow-cmd/scratch-ev3-extension/main/manifest.json</div>
+        
+        <button onclick="copyUrl()">📋 Скопировать ссылку</button>
+        
+        <p><strong>ИЛИ используйте Turbowarp:</strong> <a href="https://turbowarp.org/editor" target="_blank">https://turbowarp.org/editor</a></p>
+        
+        <h2>📁 Файлы в репозитории:</h2>
+        <ul>
+            <li><a href="manifest.json">manifest.json</a> - конфигурация расширения</li>
+            <li><a href="ev3.js">ev3.js</a> - код расширения</li>
+            <li><a href="index.html">index.html</a> - эта страница</li>
+        </ul>
+    </div>
+    
+    <script>
+        function copyUrl() {
+            const url = document.getElementById('url').textContent;
+            navigator.clipboard.writeText(url).then(() => {
+                alert('Ссылка скопирована!');
+            });
+        }
+        
+        // Автоматически определяем правильную ссылку
+        const isPagesWorking = window.location.hostname.includes('github.io');
+        const manifestUrl = isPagesWorking 
+            ? 'https://vetalbelow-cmd.github.io/scratch-ev3-extension/manifest.json'
+            : 'https://raw.githubusercontent.com/vetalbelow-cmd/scratch-ev3-extension/main/manifest.json';
+        
+        document.getElementById('url').textContent = manifestUrl;
+    </script>
+</body>
+</html>

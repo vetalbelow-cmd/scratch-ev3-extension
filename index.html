@@ -3,84 +3,356 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>EV3 Extension for Scratch</title>
+    <title>LEGO EV3 Extended - TurboWarp</title>
     <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
         body {
-            font-family: Arial, sans-serif;
-            max-width: 800px;
-            margin: 50px auto;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            color: #fff;
+            min-height: 100vh;
             padding: 20px;
-            background: #f5f5f5;
         }
+        
         .container {
-            background: white;
-            padding: 30px;
-            border-radius: 10px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            max-width: 1200px;
+            margin: 0 auto;
         }
+        
+        header {
+            text-align: center;
+            margin-bottom: 40px;
+            padding: 20px;
+            background: rgba(255, 102, 0, 0.1);
+            border-radius: 15px;
+            border: 1px solid rgba(255, 102, 0, 0.3);
+        }
+        
         h1 {
-            color: #FF6A00;
+            color: #ff6600;
+            font-size: 2.5em;
+            margin-bottom: 10px;
         }
-        .url-box {
-            background: #eee;
+        
+        .subtitle {
+            color: #ffcc99;
+            font-size: 1.2em;
+        }
+        
+        .content {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 30px;
+        }
+        
+        .card {
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 15px;
+            padding: 25px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+        }
+        
+        .card h2 {
+            color: #ff6600;
+            margin-bottom: 20px;
+            font-size: 1.5em;
+            border-bottom: 2px solid #ff6600;
+            padding-bottom: 10px;
+        }
+        
+        .step {
+            margin-bottom: 15px;
             padding: 15px;
-            border-radius: 5px;
-            font-family: monospace;
-            margin: 20px 0;
-            word-break: break-all;
+            background: rgba(255, 102, 0, 0.1);
+            border-radius: 10px;
         }
-        button {
-            background: #4CAF50;
+        
+        .step-number {
+            display: inline-block;
+            background: #ff6600;
             color: white;
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            text-align: center;
+            line-height: 30px;
+            margin-right: 10px;
+            font-weight: bold;
+        }
+        
+        .code-block {
+            background: #1e1e2e;
+            color: #8be9fd;
+            padding: 15px;
+            border-radius: 10px;
+            font-family: 'Courier New', monospace;
+            margin: 15px 0;
+            overflow-x: auto;
+        }
+        
+        .button {
+            display: inline-block;
+            background: linear-gradient(45deg, #ff6600, #ff9900);
+            color: white;
+            padding: 12px 25px;
+            border-radius: 25px;
+            text-decoration: none;
+            font-weight: bold;
+            margin: 10px 5px;
+            transition: all 0.3s ease;
             border: none;
-            padding: 10px 20px;
-            border-radius: 5px;
             cursor: pointer;
-            font-size: 16px;
+        }
+        
+        .button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(255, 102, 0, 0.4);
+        }
+        
+        .button-secondary {
+            background: linear-gradient(45deg, #666, #999);
+        }
+        
+        .status {
+            padding: 15px;
+            border-radius: 10px;
+            margin: 15px 0;
+            font-weight: bold;
+        }
+        
+        .status.connected {
+            background: rgba(0, 255, 0, 0.1);
+            border: 1px solid #0f0;
+        }
+        
+        .status.disconnected {
+            background: rgba(255, 0, 0, 0.1);
+            border: 1px solid #f00;
+        }
+        
+        .iframe-container {
+            width: 100%;
+            height: 600px;
+            border-radius: 15px;
+            overflow: hidden;
+            border: 2px solid #ff6600;
+        }
+        
+        iframe {
+            width: 100%;
+            height: 100%;
+            border: none;
+        }
+        
+        .instructions {
+            grid-column: 1 / -1;
+        }
+        
+        footer {
+            text-align: center;
+            margin-top: 40px;
+            padding: 20px;
+            color: #aaa;
+            font-size: 0.9em;
+        }
+        
+        @media (max-width: 768px) {
+            .content {
+                grid-template-columns: 1fr;
+            }
+            
+            h1 {
+                font-size: 2em;
+            }
         }
     </style>
 </head>
 <body>
     <div class="container">
-        <h1>⚡ EV3 Расширение для Scratch 3</h1>
-        <p>Чтобы использовать это расширение в Scratch:</p>
+        <header>
+            <h1>🚀 LEGO EV3 Extended</h1>
+            <p class="subtitle">Расширенное дополнение для управления EV3 из Scratch/TurboWarp</p>
+        </header>
         
-        <ol>
-            <li>Откройте <a href="https://scratch.mit.edu/projects/editor/" target="_blank">Scratch 3</a></li>
-            <li>Нажмите кнопку "Добавить расширение" (синяя, внизу слева)</li>
-            <li>Прокрутите вниз и выберите "Расширение по URL"</li>
-            <li>Вставьте эту ссылку:</li>
-        </ol>
+        <div class="content">
+            <div class="card">
+                <h2>🚀 Быстрый запуск</h2>
+                
+                <div class="step">
+                    <span class="step-number">1</span>
+                    <strong>Запустите EV3 Bridge на компьютере/EV3:</strong>
+                    <div class="code-block">python3 ev3-bridge.py</div>
+                </div>
+                
+                <div class="step">
+                    <span class="step-number">2</span>
+                    <strong>Откройте TurboWarp с расширением:</strong>
+                    <div class="code-block" id="extensionUrl">https://turbowarp.org/editor?extension=</div>
+                    <button class="button" onclick="openTurboWarp()">Открыть TurboWarp</button>
+                    <button class="button button-secondary" onclick="copyExtensionUrl()">Копировать URL</button>
+                </div>
+                
+                <div class="step">
+                    <span class="step-number">3</span>
+                    <strong>Статус подключения:</strong>
+                    <div id="connectionStatus" class="status disconnected">
+                        ❌ EV3 не подключен
+                    </div>
+                    <button class="button" onclick="testConnection()">Проверить подключение</button>
+                </div>
+            </div>
+            
+            <div class="card">
+                <h2>🎮 Прямой запуск</h2>
+                <p>Используйте встроенный TurboWarp прямо на этой странице:</p>
+                
+                <div class="iframe-container">
+                    <iframe id="turbowarpFrame" 
+                            src="https://turbowarp.org/editor?extension=&embed&fps=30"
+                            allowfullscreen></iframe>
+                </div>
+                
+                <div style="margin-top: 15px;">
+                    <button class="button" onclick="loadExtensionInFrame()">Загрузить расширение EV3</button>
+                    <button class="button button-secondary" onclick="reloadFrame()">Перезагрузить</button>
+                </div>
+            </div>
+            
+            <div class="card instructions">
+                <h2>📋 Подробные инструкции</h2>
+                
+                <div class="step">
+                    <span class="step-number">1</span>
+                    <strong>Настройка EV3:</strong>
+                    <ul style="margin-left: 20px; margin-top: 10px;">
+                        <li>Установите ev3dev на EV3</li>
+                        <li>Подключите EV3 к Wi-Fi</li>
+                        <li>Установите Python библиотеки: <code>pip3 install ev3dev2 websockets asyncio</code></li>
+                        <li>Скопируйте файл <code>ev3-bridge.py</code> на EV3</li>
+                    </ul>
+                </div>
+                
+                <div class="step">
+                    <span class="step-number">2</span>
+                    <strong>Блоки в Scratch/TurboWarp:</strong>
+                    <ul style="margin-left: 20px; margin-top: 10px;">
+                        <li>Моторы: включение/выключение, установка скорости, позиционирование</li>
+                        <li>Датчики: касание, цвет, расстояние, угол, отраженный свет</li>
+                        <li>Танковое управление: независимое управление левым/правым мотором</li>
+                        <li>Звук и светодиоды: тон, речь, управление светодиодами</li>
+                        <li>Логика: ожидание условий от датчиков</li>
+                    </ul>
+                </div>
+                
+                <div class="step">
+                    <span class="step-number">3</span>
+                    <strong>Пример программы:</strong>
+                    <div class="code-block">
+когда ⚑ нажат
+  подключиться к EV3 "localhost:8765"
+  ждать 1 секунд
+  повторять всегда
+    если датчик 1 нажат? то
+      мотор A вперед 70%
+      играть тон 440 Гц 0.5 сек
+    иначе
+      мотор A выключить
+    конец
+                    </div>
+                </div>
+            </div>
+        </div>
         
-        <div class="url-box" id="url">https://raw.githubusercontent.com/vetalbelow-cmd/scratch-ev3-extension/main/manifest.json</div>
-        
-        <button onclick="copyUrl()">📋 Скопировать ссылку</button>
-        
-        <p><strong>ИЛИ используйте Turbowarp:</strong> <a href="https://turbowarp.org/editor" target="_blank">https://turbowarp.org/editor</a></p>
-        
-        <h2>📁 Файлы в репозитории:</h2>
-        <ul>
-            <li><a href="manifest.json">manifest.json</a> - конфигурация расширения</li>
-            <li><a href="ev3-full.js">ev3-full.js</a> - код расширения</li>
-            <li><a href="index.html">index.html</a> - эта страница</li>
-        </ul>
+        <footer>
+            <p>LEGO EV3 Extended v3.0.0 | На основе официального дополнения Scratch EV3</p>
+            <p>Для работы требуется Python WebSocket мост (ev3-bridge.py)</p>
+        </footer>
     </div>
     
     <script>
-        function copyUrl() {
-            const url = document.getElementById('url').textContent;
+        // Получение текущего URL для расширения
+        const currentUrl = new URL(window.location.href);
+        const baseUrl = currentUrl.origin + currentUrl.pathname.replace('index.html', '');
+        const extensionUrl = baseUrl + 'ev3-full.js';
+        
+        // Обновление отображаемого URL
+        document.getElementById('extensionUrl').textContent = 
+            `https://turbowarp.org/editor?extension=${encodeURIComponent(extensionUrl)}`;
+        
+        // Функции для работы с интерфейсом
+        function openTurboWarp() {
+            window.open(`https://turbowarp.org/editor?extension=${encodeURIComponent(extensionUrl)}`, '_blank');
+        }
+        
+        function copyExtensionUrl() {
+            const url = `https://turbowarp.org/editor?extension=${encodeURIComponent(extensionUrl)}`;
             navigator.clipboard.writeText(url).then(() => {
-                alert('Ссылка скопирована!');
+                alert('URL скопирован в буфер обмена!');
             });
         }
         
-        // Автоматически определяем правильную ссылку
-        const isPagesWorking = window.location.hostname.includes('github.io');
-        const manifestUrl = isPagesWorking 
-            ? 'https://vetalbelow-cmd.github.io/scratch-ev3-extension/manifest.json'
-            : 'https://raw.githubusercontent.com/vetalbelow-cmd/scratch-ev3-extension/main/manifest.json';
+        function loadExtensionInFrame() {
+            const frame = document.getElementById('turbowarpFrame');
+            frame.src = `https://turbowarp.org/editor?extension=${encodeURIComponent(extensionUrl)}&embed&fps=30`;
+        }
         
-        document.getElementById('url').textContent = manifestUrl;
+        function reloadFrame() {
+            const frame = document.getElementById('turbowarpFrame');
+            frame.src = frame.src;
+        }
+        
+        // Тестирование подключения к WebSocket
+        async function testConnection() {
+            const statusElement = document.getElementById('connectionStatus');
+            
+            try {
+                statusElement.innerHTML = '🔄 Проверка подключения...';
+                statusElement.className = 'status';
+                
+                const ws = new WebSocket('ws://localhost:8765');
+                
+                // Ожидаем подключение
+                await new Promise((resolve, reject) => {
+                    const timeout = setTimeout(() => {
+                        reject(new Error('Таймаут подключения'));
+                    }, 3000);
+                    
+                    ws.onopen = () => {
+                        clearTimeout(timeout);
+                        resolve();
+                    };
+                    
+                    ws.onerror = (error) => {
+                        clearTimeout(timeout);
+                        reject(error);
+                    };
+                });
+                
+                // Закрываем тестовое подключение
+                ws.close();
+                
+                statusElement.innerHTML = '✅ EV3 подключен!';
+                statusElement.className = 'status connected';
+                
+            } catch (error) {
+                statusElement.innerHTML = '❌ EV3 не подключен. Убедитесь что запущен ev3-bridge.py';
+                statusElement.className = 'status disconnected';
+            }
+        }
+        
+        // Автоматическая проверка подключения при загрузке
+        window.addEventListener('load', () => {
+            setTimeout(testConnection, 1000);
+        });
+        
+        // Обновление статуса каждые 10 секунд
+        setInterval(testConnection, 10000);
     </script>
 </body>
 </html>

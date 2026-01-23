@@ -1,0 +1,449 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Настройка TurboWarp для EV3</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        
+        body {
+            background: linear-gradient(135deg, #2c3e50, #4a6491);
+            color: white;
+            min-height: 100vh;
+            padding: 20px;
+            line-height: 1.6;
+        }
+        
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            padding: 40px;
+            box-shadow: 0 15px 35px rgba(0, 0, 0, 0.3);
+        }
+        
+        h1 {
+            text-align: center;
+            margin-bottom: 10px;
+            font-size: 2.5em;
+            color: #f39c12;
+        }
+        
+        .subtitle {
+            text-align: center;
+            margin-bottom: 40px;
+            color: #bdc3c7;
+            font-size: 1.1em;
+        }
+        
+        .warning {
+            background: rgba(231, 76, 60, 0.2);
+            border: 2px solid #e74c3c;
+            border-radius: 15px;
+            padding: 25px;
+            margin-bottom: 30px;
+        }
+        
+        .warning h2 {
+            color: #e74c3c;
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .step {
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 15px;
+            padding: 25px;
+            margin-bottom: 25px;
+            border-left: 5px solid #3498db;
+        }
+        
+        .step-number {
+            display: inline-block;
+            background: #3498db;
+            color: white;
+            width: 35px;
+            height: 35px;
+            border-radius: 50%;
+            text-align: center;
+            line-height: 35px;
+            font-weight: bold;
+            margin-right: 15px;
+        }
+        
+        .step h3 {
+            display: inline;
+            color: #3498db;
+            font-size: 1.3em;
+        }
+        
+        .step-content {
+            margin-top: 20px;
+            padding-left: 50px;
+        }
+        
+        .code-block {
+            background: #2c3e50;
+            color: #ecf0f1;
+            padding: 15px;
+            border-radius: 10px;
+            font-family: 'Courier New', monospace;
+            margin: 15px 0;
+            overflow-x: auto;
+            border-left: 4px solid #f39c12;
+        }
+        
+        .button {
+            display: inline-block;
+            background: linear-gradient(45deg, #3498db, #2980b9);
+            color: white;
+            padding: 15px 30px;
+            border-radius: 25px;
+            text-decoration: none;
+            font-weight: bold;
+            font-size: 1.1em;
+            margin: 10px;
+            transition: all 0.3s ease;
+            border: none;
+            cursor: pointer;
+        }
+        
+        .button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(52, 152, 219, 0.3);
+        }
+        
+        .button-success {
+            background: linear-gradient(45deg, #2ecc71, #27ae60);
+        }
+        
+        .button-warning {
+            background: linear-gradient(45deg, #f39c12, #d35400);
+        }
+        
+        .button-group {
+            text-align: center;
+            margin-top: 40px;
+        }
+        
+        .mode-selector {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin: 30px 0;
+        }
+        
+        .mode-card {
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 15px;
+            padding: 25px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            border: 2px solid transparent;
+        }
+        
+        .mode-card:hover {
+            transform: translateY(-5px);
+            border-color: #3498db;
+        }
+        
+        .mode-card.selected {
+            border-color: #2ecc71;
+            background: rgba(46, 204, 113, 0.1);
+        }
+        
+        .mode-icon {
+            font-size: 3em;
+            margin-bottom: 15px;
+        }
+        
+        .mode-card h3 {
+            color: #3498db;
+            margin-bottom: 10px;
+        }
+        
+        .mode-card.selected h3 {
+            color: #2ecc71;
+        }
+        
+        footer {
+            text-align: center;
+            margin-top: 40px;
+            padding-top: 20px;
+            border-top: 1px solid rgba(255, 255, 255, 0.2);
+            color: #95a5a6;
+            font-size: 0.9em;
+        }
+        
+        .url-box {
+            background: #34495e;
+            border-radius: 10px;
+            padding: 15px;
+            margin: 20px 0;
+            word-break: break-all;
+        }
+        
+        @media (max-width: 768px) {
+            .container {
+                padding: 20px;
+            }
+            
+            .mode-selector {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>⚙️ Настройка TurboWarp для EV3</h1>
+        <p class="subtitle">Решите проблему с "unsandboxed mode" и начните работать с EV3</p>
+        
+        <div class="warning">
+            <h2>⚠️ Обнаружена проблема</h2>
+            <p>EV3 расширение требует режим <strong>Unsandboxed Extensions</strong> для доступа к WebSerial API.</p>
+            <p>В песочнице (sandboxed mode) расширение может работать только в симуляционном режиме.</p>
+        </div>
+        
+        <div class="mode-selector">
+            <div class="mode-card" id="modeReal" onclick="selectMode('real')">
+                <div class="mode-icon">🤖</div>
+                <h3>Режим реального EV3</h3>
+                <p>Полный доступ к USB порту для управления реальным роботом</p>
+                <p><strong>Требуется:</strong> Unsandboxed Mode</p>
+            </div>
+            
+            <div class="mode-card selected" id="modeSim" onclick="selectMode('sim')">
+                <div class="mode-icon">💻</div>
+                <h3>Симуляционный режим</h3>
+                <p>Тестирование программ без реального EV3</p>
+                <p><strong>Преимущество:</strong> Работает везде</p>
+            </div>
+        </div>
+        
+        <div class="step">
+            <span class="step-number">1</span>
+            <h3>Выберите режим работы</h3>
+            <div class="step-content">
+                <p id="modeDescription">
+                    <strong>Симуляционный режим:</strong> Все блоки работают, но команды не отправляются на реальный EV3.
+                    Идеально для обучения и тестирования программ.
+                </p>
+                
+                <div id="realModeSteps" style="display: none; margin-top: 20px;">
+                    <p><strong>Для реального режима выполните:</strong></p>
+                    <div class="code-block">
+1. Откройте https://turbowarp.org/editor
+2. Нажмите ⚙️ (Настройки)
+3. Включите "Unsandboxed extensions"
+4. Перезагрузите страницу
+5. Добавьте расширение EV3
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="step">
+            <span class="step-number">2</span>
+            <h3>Добавьте расширение EV3</h3>
+            <div class="step-content">
+                <p>Скопируйте URL расширения и вставьте его в TurboWarp:</p>
+                
+                <div class="url-box" id="extensionUrl">
+                    Загрузка URL...
+                </div>
+                
+                <div class="button-group">
+                    <button class="button" onclick="copyExtensionUrl()">📋 Копировать URL</button>
+                    <button class="button button-success" onclick="openTurboWarpWithExtension()">
+                        🔗 Открыть TurboWarp с расширением
+                    </button>
+                </div>
+                
+                <p style="margin-top: 20px; font-size: 0.9em;">
+                    В TurboWarp: Расширения → Добавить расширение → Вставить URL
+                </p>
+            </div>
+        </div>
+        
+        <div class="step">
+            <span class="step-number">3</span>
+            <h3>Начните программировать</h3>
+            <div class="step-content">
+                <p>Используйте блоки EV3 в вашей программе:</p>
+                
+                <div class="code-block">
+когда ⚑ нажат
+  если WebSerial поддерживается? то
+    сказать "Подключаюсь к EV3..."
+    подключить EV3 через USB
+    ждать 1 секунд
+    
+    повторять 10 раз
+      мотор A вперед 50%
+      ждать 0.5 секунд
+      мотор A выключить
+      ждать 0.5 секунд
+    конец
+    
+    отключить EV3
+  иначе
+    сказать "WebSerial не поддерживается"
+  конец
+                </div>
+                
+                <p style="margin-top: 15px;">
+                    <strong>Совет:</strong> Всегда проверяйте поддержку WebSerial перед подключением.
+                </p>
+            </div>
+        </div>
+        
+        <div class="button-group">
+            <button class="button button-success" onclick="openQuickStart()">🚀 Быстрый старт</button>
+            <button class="button" onclick="openExamples()">📚 Примеры программ</button>
+            <button class="button button-warning" onclick="openTroubleshooting()">🔧 Устранение проблем</button>
+        </div>
+        
+        <footer>
+            <p>EV3 Local Extension v4.1 | Автоматическое переключение между реальным и симуляционным режимом</p>
+            <p>Поддерживаемые браузеры: Chrome 89+, Edge 89+, Opera 76+</p>
+        </footer>
+    </div>
+    
+    <script>
+        let selectedMode = 'sim';
+        
+        // Генерация URL расширения
+        function generateExtensionURL() {
+            const currentUrl = new URL(window.location.href);
+            const baseUrl = currentUrl.origin + currentUrl.pathname.replace('turbo-config.html', '');
+            return baseUrl + 'ev3-full.js';
+        }
+        
+        // Выбор режима работы
+        function selectMode(mode) {
+            selectedMode = mode;
+            
+            // Обновляем UI
+            document.getElementById('modeReal').classList.remove('selected');
+            document.getElementById('modeSim').classList.remove('selected');
+            document.getElementById('mode' + (mode === 'real' ? 'Real' : 'Sim')).classList.add('selected');
+            
+            // Обновляем описание
+            const description = document.getElementById('modeDescription');
+            const realSteps = document.getElementById('realModeSteps');
+            
+            if (mode === 'real') {
+                description.innerHTML = '<strong>Режим реального EV3:</strong> Полный доступ к USB порту для управления реальным роботом. Требуется включить Unsandboxed Mode в настройках TurboWarp.';
+                realSteps.style.display = 'block';
+            } else {
+                description.innerHTML = '<strong>Симуляционный режим:</strong> Все блоки работают, но команды не отправляются на реальный EV3. Идеально для обучения и тестирования программ.';
+                realSteps.style.display = 'none';
+            }
+            
+            // Обновляем URL расширения
+            updateExtensionURL();
+        }
+        
+        // Обновление отображаемого URL
+        function updateExtensionURL() {
+            const extensionUrl = generateExtensionURL();
+            const urlBox = document.getElementById('extensionUrl');
+            
+            urlBox.innerHTML = `<strong>URL расширения:</strong><br>${extensionUrl}`;
+            
+            // Добавляем параметр режима если нужно
+            if (selectedMode === 'sim') {
+                urlBox.innerHTML += '<br><small style="color: #f39c12;">(Симуляционный режим по умолчанию)</small>';
+            }
+        }
+        
+        // Копирование URL расширения
+        function copyExtensionUrl() {
+            const extensionUrl = generateExtensionURL();
+            navigator.clipboard.writeText(extensionUrl).then(() => {
+                alert('URL расширения скопирован в буфер обмена!');
+            });
+        }
+        
+        // Открытие TurboWarp с расширением
+        function openTurboWarpWithExtension() {
+            const extensionUrl = generateExtensionURL();
+            const url = `https://turbowarp.org/editor?extension=${encodeURIComponent(extensionUrl)}`;
+            window.open(url, '_blank');
+        }
+        
+        // Другие функции
+        function openQuickStart() {
+            const steps = [
+                '=== БЫСТРЫЙ СТАРТ ===',
+                '',
+                '1. Выберите режим работы:',
+                '   - Симуляционный: для тестирования',
+                '   - Реальный: для работы с EV3',
+                '',
+                '2. Для реального режима:',
+                '   - Включите Unsandboxed Mode в TurboWarp',
+                '   - Подключите EV3 через USB',
+                '   - Нажмите "Подключить EV3"',
+                '',
+                '3. Используйте блоки:',
+                '   - "подключить EV3 через USB"',
+                '   - "мотор A вперед 50%"',
+                '   - "датчик 1 значение"',
+                '',
+                '4. Пример программы в описании ниже!'
+            ];
+            
+            alert(steps.join('\n'));
+        }
+        
+        function openExamples() {
+            alert('Примеры программ откроются в новом окне.\nИли посмотрите код в шаге 3 на этой странице.');
+        }
+        
+        function openTroubleshooting() {
+            const issues = [
+                '=== УСТРАНЕНИЕ ПРОБЛЕМ ===',
+                '',
+                '❌ "Unsandboxed mode required"',
+                'Решение: Включите Unsandboxed Mode в настройках TurboWarp',
+                '',
+                '❌ "WebSerial not supported"',
+                'Решение: Используйте Chrome 89+, Edge 89+ или Opera 76+',
+                '',
+                '❌ "EV3 not found"',
+                'Решение:',
+                '1. Подключите EV3 через USB',
+                '2. Убедитесь что EV3 включен',
+                '3. Отключите Wi-Fi/Bluetooth на EV3',
+                '',
+                '❌ "Permission denied"',
+                'Решение: Нажмите "Разрешить" при запросе доступа',
+                '',
+                '🔄 Еще вопросы?',
+                'Используйте симуляционный режим для тестирования!'
+            ];
+            
+            alert(issues.join('\n'));
+        }
+        
+        // Инициализация при загрузке
+        document.addEventListener('DOMContentLoaded', function() {
+            updateExtensionURL();
+            selectMode('sim');
+        });
+    </script>
+</body>
+</html>

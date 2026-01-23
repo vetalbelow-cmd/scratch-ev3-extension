@@ -1,110 +1,127 @@
-// EV3 Extension - COMPATIBLE WITH SCRATCH 3
 (function(ext) {
-    console.log('EV3 Extension loading...');
-    
-    // === ПРОСТЫЕ ФУНКЦИИ (старый формат) ===
-    
-    // Функции должны принимать параметры напрямую, не через args
-    ext.test = function() {
-        console.log('EV3 тест работает!');
+    var device = null;
+    var writer = null;
+    var inputBuffer = '';
+    var connected = false;
+
+    // Очистка при деактивации
+    ext._shutdown = function() {
+        if (device) {
+            device.close();
+            device = null;
+            connected = false;
+        }
     };
-    
-    ext.motorOnForSeconds = function(port, power, seconds) {
-        console.log('Мотор ' + port + ': ' + power + '% на ' + seconds + 'сек');
+
+    // Статус расширения
+    ext._getStatus = function() {
+        return {status: connected ? 2 : 1, msg: connected ? 'EV3 подключен' : 'EV3 отключен'};
     };
-    
-    ext.motorOnForDegrees = function(port, degrees, power) {
-        console.log('Мотор ' + port + ': ' + power + '% на ' + degrees + '°');
+
+    // === БЛОКИ ДЛЯ SCRATCH ===
+
+    // Блок: подключить EV3
+    ext.connectEV3 = function(callback) {
+        if ('serial' in navigator) {
+            navigator.serial.requestPort({filters: [{usbVendorId: 0x0694}]})
+                .then(function(port) {
+                    device = port;
+                    return device.open({baudRate: 115200});
+                })
+                .then(function() {
+                    writer = device.writable.getWriter();
+                    connected = true;
+                    if (callback) callback();
+                })
+                .catch(function(err) {
+                    console.error('Ошибка подключения:', err);
+                    if (callback) callback();
+                });
+        } else {
+            console.error('WebSerial API не поддерживается');
+            if (callback) callback();
+        }
     };
-    
-    ext.setMotorPower = function(port, power) {
-        console.log('Мотор ' + port + ' мощность: ' + power + '%');
+
+    // Блок: отключить EV3
+    ext.disconnectEV3 = function(callback) {
+        if (device) {
+            writer.releaseLock();
+            device.close();
+            device = null;
+            writer = null;
+            connected = false;
+        }
+        if (callback) callback();
     };
-    
-    ext.getColor = function(port) {
-        console.log('Датчик цвета порт ' + port);
-        return Math.floor(Math.random() * 8); // 0-7
+
+    // Блок: двигатель вперед
+    ext.motorForward = function(port, power, duration, callback) {
+        if (!connected || !writer) {
+            if (callback) callback();
+            return;
+        }
+        
+        var command = `M${port.toUpperCase()}:${power}:${duration}\n`;
+        var data = new TextEncoder().encode(command);
+        
+        writer.write(data)
+            .then(function() {
+                if (callback) setTimeout(callback, duration * 1000);
+            })
+            .catch(function(err) {
+                console.error('Ошибка отправки:', err);
+                if (callback) callback();
+            });
     };
-    
-    ext.getReflectedLight = function(port) {
-        console.log('Датчик отражения порт ' + port);
-        return Math.floor(Math.random() * 101); // 0-100
+
+    // Блок: получить данные с датчика
+    ext.getSensorValue = function(port, callback) {
+        if (!connected || !writer) {
+            callback(0);
+            return;
+        }
+        
+        var command = `S${port.toUpperCase()}?\n`;
+        var data = new TextEncoder().encode(command);
+        
+        writer.write(data)
+            .then(function() {
+                // Здесь должна быть логика чтения ответа от EV3
+                // Для примера возвращаем случайное значение
+                setTimeout(function() {
+                    callback(Math.floor(Math.random() * 100));
+                }, 100);
+            })
+            .catch(function(err) {
+                console.error('Ошибка запроса датчика:', err);
+                callback(0);
+            });
     };
-    
-    ext.stopMotor = function(port) {
-        console.log('Мотор ' + port + ': остановлен');
-    };
-    
-    ext.stopAllMotors = function() {
-        console.log('Все моторы остановлены');
-    };
-    
-    ext.setMotorDirection = function(port, direction) {
-        console.log('Мотор ' + port + ' направление: ' + direction);
-    };
-    
-    // === ОПИСАНИЕ БЛОКОВ (СТАРЫЙ ФОРМАТ Scratch 2) ===
-    // Turbowarp лучше работает со старым форматом
-    
+
+    // Описание блоков для Scratch
     var descriptor = {
         blocks: [
-            // Команды
-            [' ', 'Тест расширения', 'test'],
-            [' ', 'Мотор %m.ports мощность %n% на %n секунд', 'motorOnForSeconds', 'A', 50, 1],
-            [' ', 'Мотор %m.ports на %n градусов мощность %n%', 'motorOnForDegrees', 'A', 90, 50],
-            [' ', 'Установить мотор %m.ports мощность %n%', 'setMotorPower', 'A', 50],
-            [' ', 'Установить мотор %m.ports направление %m.directions', 'setMotorDirection', 'A', 'forward'],
-            [' ', 'Остановить мотор %m.ports', 'stopMotor', 'A'],
-            [' ', 'Остановить все моторы', 'stopAllMotors'],
-            
-            // Датчики (репортеры)
-            ['r', 'Датчик цвета (порт %n) цвет', 'getColor', 1],
-            ['r', 'Датчик цвета (порт %n) отражение %', 'getReflectedLight', 1],
-            
-            // Хата-блок (информация)
-            ['h', 'EV3 Control v1.0', 'test']
+            ['w', 'Подключить EV3', 'connectEV3'],
+            ['w', 'Отключить EV3', 'disconnectEV3'],
+            ['w', 'Двигатель %m.ports вперед %n% мощность %n секунд', 'motorForward', 'A', 50, 1],
+            ['r', 'Датчик %m.ports значение', 'getSensorValue', '1']
         ],
         menus: {
-            ports: ['A', 'B', 'C', 'D'],
-            directions: ['forward', 'backward']
+            ports: ['A', 'B', 'C', 'D', '1', '2', '3', '4']
         },
-        url: 'https://github.com/vetalbelow-cmd/scratch-ev3-extension'
+        url: 'https://vetalbelow-cmd.github.io/scratch-ev3-extension/'
     };
-    
-    // === РЕГИСТРАЦИЯ (универсальная) ===
-    
-    // Для Scratch 2.x
-    if (typeof window.ScratchExtensions !== 'undefined') {
-        window.ScratchExtensions('EV3', descriptor, ext);
-    }
-    // Для Scratch 3.x
-    else if (typeof Scratch !== 'undefined' && Scratch.extensions) {
-        // Конвертируем старый формат в новый для Scratch 3
-        var newDescriptor = {
-            id: 'ev3',
-            name: 'EV3 Control',
-            color1: '#FF6A00',
-            color2: '#FF4500',
-            blocks: []
-        };
-        
-        // Конвертация блоков
-        descriptor.blocks.forEach(function(block) {
-            if (block[1] === 'Тест расширения') {
-                newDescriptor.blocks.push({
-                    opcode: 'test',
-                    blockType: Scratch.BlockType.COMMAND,
-                    text: 'Тест расширения'
-                });
-            }
-            // Можно добавить конвертацию других блоков
-        });
-        
-        Scratch.extensions.register(newDescriptor, ext);
-    }
-    
-    console.log('EV3 Extension успешно загружен!');
-    
-})({});
-    
 
+    // Регистрация расширения
+    if (typeof window.ScratchExtensions !== 'undefined') {
+        window.ScratchExtensions.register('EV3 Extension', descriptor, ext);
+    } else {
+        console.warn('ScratchExtensions не найден. Расширение не зарегистрировано.');
+    }
+
+    // Экспорт для тестирования
+    if (typeof module !== 'undefined') {
+        module.exports = ext;
+    }
+})({});

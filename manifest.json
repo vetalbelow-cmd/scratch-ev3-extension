@@ -1,13 +1,14 @@
 {
-  "name": "LEGO EV3 Extended",
-  "version": "3.0.0",
-  "description": "Расширенное дополнение LEGO EV3 для Scratch/TurboWarp с WebSocket поддержкой",
+  "name": "LEGO EV3 Local",
+  "version": "4.0.0",
+  "description": "Локальное управление EV3 через WebSerial API (без сервера)",
   "manifest_version": 3,
-  "permissions": [],
+  "permissions": [
+    "serial"
+  ],
   "host_permissions": [
-    "*://localhost/*",
-    "ws://localhost:8765/*",
-    "http://ev3dev.local/*"
+    "*://*.turbowarp.org/*",
+    "*://*.scratch.mit.edu/*"
   ],
   "content_scripts": [
     {
@@ -17,7 +18,7 @@
       ],
       "js": ["ev3-full.js"],
       "run_at": "document_end",
-      "all_frames": true
+      "all_frames": false
     }
   ],
   "web_accessible_resources": [

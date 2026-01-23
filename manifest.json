@@ -1,6 +1,8 @@
 {
-    "name": "EV3 Simple",
+    "name": "EV3 Control",
+    "description": "Управление LEGO Mindstorms EV3",
+    "version": "1.0.0",
     "extension": {
-        "url": "https://raw.githubusercontent.com/vetalbelow-cmd/ev3-test-simple/main/ev3-simple.js"
+        "url": "https://raw.githubusercontent.com/vetalbelow-cmd/scratch-ev3-extension/main/ev3.js"
     }
 }

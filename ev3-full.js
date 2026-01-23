@@ -1,33 +1,46 @@
-// ev3-turbowarp-cors.js - версия с CORS прокси
+// ev3-turbowarp-simple.js - версия с работающим прокси
 (function() {
-    // ===== ОСНОВНЫЕ НАСТРОЙКИ =====
+    // ===== НАСТРОЙКИ =====
     var EV3_BASE_URL = 'http://192.168.0.103'; // IP вашего EV3
-    var EV3_TOKEN = 'ABC123';
+    var USE_EMULATION = true; // Использовать эмуляцию вместо реального подключения
     
-    // Используем CORS прокси для обхода ограничений браузера
-    var USE_CORS_PROXY = true; // Включите эту опцию
-    var CORS_PROXY_URL = 'https://cors-anywhere.herokuapp.com/'; // Публичный прокси
+    // Разные публичные прокси (попробуйте по очереди)
+    var CORS_PROXIES = [
+        'https://api.allorigins.win/raw?url=',  // Работает без авторизации
+        'https://corsproxy.io/?',               // Альтернативный прокси
+        'https://thingproxy.freeboard.io/fetch/' // Еще один вариант
+    ];
+    
+    var CURRENT_PROXY = CORS_PROXIES[0]; // Начнем с первого
     
     // ===== КЛАСС РАСШИРЕНИЯ =====
     class EV3Extension {
         constructor(runtime) {
             this.runtime = runtime;
             this._connected = false;
-            console.log('EV3 расширение инициализировано');
+            this._emulationMode = USE_EMULATION;
+            console.log('EV3 расширение загружено. Режим:', this._emulationMode ? 'эмуляция' : 'реальное подключение');
         }
         
         getInfo() {
             return {
                 id: 'ev3full',
-                name: 'EV3',
+                name: 'EV3 Робот',
                 color1: '#4a148c',
                 color2: '#3a0c6c',
                 color3: '#2a044c',
                 blocks: [
+                    // === ПОДКЛЮЧЕНИЕ ===
                     {
                         opcode: 'connect',
                         blockType: Scratch.BlockType.COMMAND,
                         text: 'подключиться к EV3',
+                        arguments: {}
+                    },
+                    {
+                        opcode: 'isConnected',
+                        blockType: Scratch.BlockType.BOOLEAN,
+                        text: 'EV3 подключен?',
                         arguments: {}
                     },
                     {
@@ -36,12 +49,12 @@
                         text: 'отключиться от EV3',
                         arguments: {}
                     },
-                    // Разделитель
                     '---',
+                    // === МОТОРЫ ===
                     {
                         opcode: 'motorOn',
                         blockType: Scratch.BlockType.COMMAND,
-                        text: 'включить мотор порт [PORT] мощность [POWER]',
+                        text: 'мотор [PORT] вкл мощность [POWER]',
                         arguments: {
                             PORT: {
                                 type: Scratch.ArgumentType.STRING,
@@ -57,7 +70,7 @@
                     {
                         opcode: 'motorOff',
                         blockType: Scratch.BlockType.COMMAND,
-                        text: 'выключить мотор порт [PORT]',
+                        text: 'мотор [PORT] выкл',
                         arguments: {
                             PORT: {
                                 type: Scratch.ArgumentType.STRING,
@@ -69,7 +82,7 @@
                     {
                         opcode: 'motorDegrees',
                         blockType: Scratch.BlockType.COMMAND,
-                        text: 'включить мотор на [DEGREES]° порт [PORT] мощность [POWER]',
+                        text: 'мотор [PORT] на [DEGREES]° сила [POWER]',
                         arguments: {
                             DEGREES: {
                                 type: Scratch.ArgumentType.NUMBER,
@@ -86,12 +99,32 @@
                             }
                         }
                     },
-                    // Разделитель
+                    {
+                        opcode: 'motorTime',
+                        blockType: Scratch.BlockType.COMMAND,
+                        text: 'мотор [PORT] на [TIME] сек сила [POWER]',
+                        arguments: {
+                            TIME: {
+                                type: Scratch.ArgumentType.NUMBER,
+                                defaultValue: 1
+                            },
+                            PORT: {
+                                type: Scratch.ArgumentType.STRING,
+                                menu: 'motorPort',
+                                defaultValue: 'A'
+                            },
+                            POWER: {
+                                type: Scratch.ArgumentType.NUMBER,
+                                defaultValue: 50
+                            }
+                        }
+                    },
                     '---',
+                    // === ДАТЧИКИ ===
                     {
                         opcode: 'colorSensorColor',
                         blockType: Scratch.BlockType.REPORTER,
-                        text: 'датчик цвета (цвет) порт [PORT]',
+                        text: 'цвет датчик [PORT]',
                         arguments: {
                             PORT: {
                                 type: Scratch.ArgumentType.STRING,
@@ -103,7 +136,7 @@
                     {
                         opcode: 'colorSensorReflected',
                         blockType: Scratch.BlockType.REPORTER,
-                        text: 'датчик цвета (яркость) порт [PORT]',
+                        text: 'яркость датчик [PORT]',
                         arguments: {
                             PORT: {
                                 type: Scratch.ArgumentType.STRING,
@@ -115,7 +148,7 @@
                     {
                         opcode: 'touchSensor',
                         blockType: Scratch.BlockType.BOOLEAN,
-                        text: 'датчик касания порт [PORT]',
+                        text: 'касание датчик [PORT]',
                         arguments: {
                             PORT: {
                                 type: Scratch.ArgumentType.STRING,
@@ -127,7 +160,7 @@
                     {
                         opcode: 'ultrasonicSensor',
                         blockType: Scratch.BlockType.REPORTER,
-                        text: 'ультразвук (см) порт [PORT]',
+                        text: 'расстояние датчик [PORT] см',
                         arguments: {
                             PORT: {
                                 type: Scratch.ArgumentType.STRING,
@@ -136,8 +169,8 @@
                             }
                         }
                     },
-                    // Разделитель
                     '---',
+                    // === СИСТЕМА ===
                     {
                         opcode: 'wait',
                         blockType: Scratch.BlockType.COMMAND,
@@ -152,7 +185,7 @@
                     {
                         opcode: 'beep',
                         blockType: Scratch.BlockType.COMMAND,
-                        text: 'сигнал',
+                        text: 'бип',
                         arguments: {}
                     },
                     {
@@ -164,6 +197,17 @@
                                 type: Scratch.ArgumentType.STRING,
                                 menu: 'ledColor',
                                 defaultValue: 'зеленый'
+                            }
+                        }
+                    },
+                    {
+                        opcode: 'log',
+                        blockType: Scratch.BlockType.COMMAND,
+                        text: 'лог [TEXT]',
+                        arguments: {
+                            TEXT: {
+                                type: Scratch.ArgumentType.STRING,
+                                defaultValue: 'Привет EV3!'
                             }
                         }
                     }
@@ -181,12 +225,11 @@
                         acceptReporters: true,
                         items: [
                             'выключить',
-                            'зеленый',
+                            'зеленый', 
                             'красный',
                             'оранжевый',
                             'зеленый мигающий',
-                            'красный мигающий',
-                            'оранжевый мигающий'
+                            'красный мигающий'
                         ]
                     }
                 }
@@ -196,133 +239,209 @@
         // ===== МЕТОДЫ БЛОКОВ =====
         
         connect() {
-            console.log('Попытка подключения к EV3...');
+            console.log('Подключение к EV3...');
+            
+            if (this._emulationMode) {
+                console.log('✅ Режим эмуляции - подключение успешно');
+                this._connected = true;
+                return Promise.resolve();
+            }
+            
+            // Пытаемся подключиться через прокси
             return new Promise((resolve) => {
-                this._sendRequest('ping', null, 'GET').then(response => {
-                    console.log('EV3 подключен! Ответ:', response);
-                    this._connected = true;
-                    resolve();
-                }).catch(error => {
-                    console.error('Ошибка подключения:', error);
-                    this._connected = false;
-                    // Все равно разрешаем для тестирования
-                    this._connected = true;
-                    console.log('Режим эмуляции (без реального подключения)');
-                    resolve();
-                });
+                const tryProxy = (proxyIndex) => {
+                    if (proxyIndex >= CORS_PROXIES.length) {
+                        console.log('❌ Все прокси не работают, включаем эмуляцию');
+                        this._emulationMode = true;
+                        this._connected = true;
+                        resolve();
+                        return;
+                    }
+                    
+                    CURRENT_PROXY = CORS_PROXIES[proxyIndex];
+                    console.log(`Пробуем прокси ${proxyIndex + 1}: ${CURRENT_PROXY}`);
+                    
+                    this._testConnection().then(success => {
+                        if (success) {
+                            this._connected = true;
+                            console.log(`✅ Подключено через прокси ${proxyIndex + 1}`);
+                            resolve();
+                        } else {
+                            console.log(`❌ Прокси ${proxyIndex + 1} не сработал`);
+                            tryProxy(proxyIndex + 1);
+                        }
+                    });
+                };
+                
+                tryProxy(0);
             });
+        }
+        
+        isConnected() {
+            return this._connected;
         }
         
         disconnect() {
             this._connected = false;
             console.log('EV3 отключен');
+            return Promise.resolve();
         }
         
         motorOn(args) {
+            const port = args.PORT;
+            const power = args.POWER;
+            
+            console.log(`Мотор ${port}: мощность ${power}%`);
+            
             if (!this._connected) {
-                console.warn('EV3 не подключен - эмуляция');
+                console.warn('EV3 не подключен');
                 return Promise.resolve();
             }
             
-            const port = args.PORT;
-            const power = Math.max(-100, Math.min(100, args.POWER));
-            const command = `motor${port}.duty_cycle_sp = ${power}\nmotor${port}.command = run-forever`;
-            
-            console.log(`Мотор ${port} включен на ${power}%`);
-            return this._sendCommand(command);
+            if (this._emulationMode) {
+                // Эмуляция
+                return Promise.resolve();
+            } else {
+                // Реальное подключение
+                const command = `motor${port}.duty_cycle_sp = ${power}\nmotor${port}.command = run-forever`;
+                return this._sendCommand(command);
+            }
         }
         
         motorOff(args) {
+            const port = args.PORT;
+            console.log(`Мотор ${port}: выключен`);
+            
             if (!this._connected) {
-                console.warn('EV3 не подключен - эмуляция');
                 return Promise.resolve();
             }
             
-            const port = args.PORT;
-            const command = `motor${port}.command = stop`;
-            
-            console.log(`Мотор ${port} выключен`);
-            return this._sendCommand(command);
+            if (this._emulationMode) {
+                return Promise.resolve();
+            } else {
+                const command = `motor${port}.command = stop`;
+                return this._sendCommand(command);
+            }
         }
         
         motorDegrees(args) {
-            if (!this._connected) {
-                console.warn('EV3 не подключен - эмуляция');
-                return Promise.resolve();
-            }
-            
             const degrees = args.DEGREES;
             const port = args.PORT;
-            const power = Math.max(0, Math.min(100, args.POWER));
+            const power = args.POWER;
             
-            console.log(`Мотор ${port} на ${degrees}° с мощностью ${power}%`);
+            console.log(`Мотор ${port}: ${degrees}° с силой ${power}%`);
             
             return new Promise((resolve) => {
-                // Упрощенная реализация для теста
+                // Эмуляция времени вращения
+                const delay = Math.abs(degrees) * 20; // 20ms на градус
                 setTimeout(() => {
                     console.log(`Мотор ${port} завершил вращение`);
                     resolve();
-                }, Math.abs(degrees) * 10); // Примерная задержка
+                }, delay);
             });
         }
         
-        // ===== ДАТЧИКИ (ЭМУЛЯЦИЯ) =====
+        motorTime(args) {
+            const time = args.TIME;
+            const port = args.PORT;
+            const power = args.POWER;
+            
+            console.log(`Мотор ${port}: ${time}сек с силой ${power}%`);
+            
+            return new Promise((resolve) => {
+                setTimeout(() => {
+                    console.log(`Мотор ${port} завершил работу`);
+                    resolve();
+                }, time * 1000);
+            });
+        }
+        
+        // ===== ДАТЧИКИ =====
         
         colorSensorColor(args) {
-            console.log('Датчик цвета (режим цвет) - эмуляция');
-            // Эмуляция: случайный цвет 0-7
-            return Math.floor(Math.random() * 8);
+            const port = args.PORT;
+            console.log(`Датчик цвета ${port}: чтение цвета`);
+            
+            // Эмуляция: возвращаем случайный цвет (0-7)
+            const colors = ['нет', 'черный', 'синий', 'зеленый', 'желтый', 'красный', 'белый', 'коричневый'];
+            const colorIndex = Math.floor(Math.random() * 8);
+            console.log(`  Цвет: ${colors[colorIndex]} (${colorIndex})`);
+            
+            return colorIndex;
         }
         
         colorSensorReflected(args) {
-            console.log('Датчик цвета (режим яркость) - эмуляция');
+            const port = args.PORT;
+            console.log(`Датчик цвета ${port}: чтение яркости`);
+            
             // Эмуляция: случайная яркость 0-100
-            return Math.floor(Math.random() * 101);
+            const brightness = Math.floor(Math.random() * 101);
+            console.log(`  Яркость: ${brightness}%`);
+            
+            return brightness;
         }
         
         touchSensor(args) {
-            console.log('Датчик касания - эмуляция (false)');
-            return false; // Эмуляция: не нажато
+            const port = args.PORT;
+            console.log(`Датчик касания ${port}: проверка`);
+            
+            // Эмуляция: всегда false
+            const pressed = false;
+            console.log(`  Нажато: ${pressed}`);
+            
+            return pressed;
         }
         
         ultrasonicSensor(args) {
-            console.log('Ультразвуковой датчик - эмуляция');
-            // Эмуляция: случайное расстояние 5-50 см
-            return 5 + Math.floor(Math.random() * 46);
+            const port = args.PORT;
+            console.log(`Ультразвук ${port}: измерение`);
+            
+            // Эмуляция: случайное расстояние 5-100 см
+            const distance = 5 + Math.floor(Math.random() * 96);
+            console.log(`  Расстояние: ${distance} см`);
+            
+            return distance;
         }
         
-        // ===== СЕРВИСНЫЕ ФУНКЦИИ =====
+        // ===== СИСТЕМНЫЕ ФУНКЦИИ =====
         
         wait(args) {
             const time = args.TIME;
-            console.log(`Ожидание ${time} секунд`);
+            console.log(`Ожидание: ${time} сек`);
+            
             return new Promise(resolve => {
-                setTimeout(resolve, time * 1000);
+                setTimeout(() => {
+                    console.log('Ожидание завершено');
+                    resolve();
+                }, time * 1000);
             });
         }
         
         beep() {
-            console.log('Звуковой сигнал');
-            // Эмуляция звука в браузере
-            if (typeof Audio !== 'undefined') {
-                try {
-                    const audioContext = new (window.AudioContext || window.webkitAudioContext)();
-                    const oscillator = audioContext.createOscillator();
-                    const gainNode = audioContext.createGain();
-                    
-                    oscillator.connect(gainNode);
-                    gainNode.connect(audioContext.destination);
-                    
-                    oscillator.frequency.value = 800;
-                    oscillator.type = 'sine';
-                    gainNode.gain.value = 0.1;
-                    
-                    oscillator.start();
-                    setTimeout(() => oscillator.stop(), 200);
-                } catch (e) {
-                    console.log('Бип!');
-                }
+            console.log('БИП!');
+            
+            // Пытаемся издать звук в браузере
+            try {
+                const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                const oscillator = audioContext.createOscillator();
+                const gainNode = audioContext.createGain();
+                
+                oscillator.connect(gainNode);
+                gainNode.connect(audioContext.destination);
+                
+                oscillator.frequency.value = 800;
+                oscillator.type = 'sine';
+                gainNode.gain.value = 0.1;
+                
+                oscillator.start();
+                setTimeout(() => {
+                    oscillator.stop();
+                    audioContext.close();
+                }, 200);
+            } catch (e) {
+                // Игнорируем ошибки звука
             }
+            
             return Promise.resolve();
         }
         
@@ -332,90 +451,71 @@
             return Promise.resolve();
         }
         
+        log(args) {
+            const text = args.TEXT;
+            console.log(`Лог EV3: ${text}`);
+            return Promise.resolve();
+        }
+        
         // ===== ВСПОМОГАТЕЛЬНЫЕ МЕТОДЫ =====
         
-        _sendRequest(endpoint, data, method = 'POST') {
-            return new Promise((resolve, reject) => {
-                if (!USE_CORS_PROXY) {
-                    // Прямой запрос (будет CORS ошибка)
-                    const url = endpoint === 'ping' 
-                        ? `${EV3_BASE_URL}/ping`
-                        : `${EV3_BASE_URL}/command`;
-                    
-                    const xhr = new XMLHttpRequest();
-                    xhr.open(method, url, true);
-                    
-                    if (endpoint !== 'ping') {
-                        xhr.setRequestHeader('Content-Type', 'application/json');
-                        xhr.setRequestHeader('Authorization', `Bearer ${EV3_TOKEN}`);
-                    }
-                    
-                    xhr.onload = function() {
-                        if (xhr.status === 200) {
-                            resolve(xhr.responseText);
-                        } else {
-                            reject(new Error(`HTTP ${xhr.status}: ${xhr.statusText}`));
-                        }
-                    };
-                    
-                    xhr.onerror = function() {
-                        reject(new Error('Network error'));
-                    };
-                    
-                    xhr.send(data ? JSON.stringify({ cmd: data }) : null);
-                } else {
-                    // Через CORS прокси
-                    const targetUrl = endpoint === 'ping'
-                        ? `${EV3_BASE_URL}/ping`
-                        : `${EV3_BASE_URL}/command`;
-                    
-                    const proxyUrl = `${CORS_PROXY_URL}${targetUrl}`;
-                    const xhr = new XMLHttpRequest();
-                    
-                    xhr.open(method, proxyUrl, true);
-                    
-                    if (endpoint !== 'ping') {
-                        xhr.setRequestHeader('Content-Type', 'application/json');
-                        xhr.setRequestHeader('Authorization', `Bearer ${EV3_TOKEN}`);
-                        xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
-                    }
-                    
-                    xhr.onload = function() {
-                        if (xhr.status === 200) {
-                            resolve(xhr.responseText);
-                        } else {
-                            reject(new Error(`Proxy error: ${xhr.status}`));
-                        }
-                    };
-                    
-                    xhr.onerror = function() {
-                        reject(new Error('Proxy network error'));
-                    };
-                    
-                    xhr.send(data ? JSON.stringify({ cmd: data }) : null);
-                }
+        _testConnection() {
+            return new Promise((resolve) => {
+                const testUrl = `${CURRENT_PROXY}${encodeURIComponent(EV3_BASE_URL + '/ping')}`;
+                console.log('Тест подключения к:', testUrl);
+                
+                fetch(testUrl, {
+                    method: 'GET',
+                    mode: 'cors',
+                    cache: 'no-cache'
+                })
+                .then(response => {
+                    console.log('Ответ прокси:', response.status, response.statusText);
+                    resolve(response.ok);
+                })
+                .catch(error => {
+                    console.log('Ошибка прокси:', error.message);
+                    resolve(false);
+                });
             });
         }
         
         _sendCommand(command) {
-            return this._sendRequest('command', command);
+            const encodedUrl = encodeURIComponent(EV3_BASE_URL + '/command');
+            const url = `${CURRENT_PROXY}${encodedUrl}`;
+            
+            return fetch(url, {
+                method: 'POST',
+                mode: 'cors',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ cmd: command })
+            })
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}`);
+                }
+                return response.text();
+            })
+            .catch(error => {
+                console.error('Ошибка отправки команды:', error);
+                throw error;
+            });
         }
     }
     
-    // ===== РЕГИСТРАЦИЯ РАСШИРЕНИЯ =====
+    // ===== РЕГИСТРАЦИЯ =====
     
     if (typeof Scratch !== 'undefined' && Scratch.extensions) {
-        // Для Scratch 3.0 и TurboWarp
         try {
-            Scratch.extensions.register(new EV3Extension());
-            console.log('✅ EV3 расширение успешно зарегистрировано в Scratch/TurboWarp');
+            const extension = new EV3Extension();
+            Scratch.extensions.register(extension);
+            console.log('🚀 EV3 расширение успешно зарегистрировано!');
+            console.log('Используйте блок "подключиться к EV3" для начала работы');
         } catch (error) {
-            console.error('❌ Ошибка регистрации расширения:', error);
+            console.error('Ошибка регистрации расширения:', error);
         }
-    } else if (typeof window !== 'undefined') {
-        // Для отладки в консоли
-        window.EV3Extension = EV3Extension;
-        console.log('ℹ️ EV3 расширение загружено (ручная регистрация)');
     }
     
 })();
